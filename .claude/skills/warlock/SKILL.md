@@ -1,11 +1,7 @@
 ---
 name: warlock
 description: Guardrails for AI agents editing @posthog/warlock, adding or porting rules, proposing new categories, or reviewing Warlock PRs. Load when working in /warlock or on a PR that touches the Warlock source, rules, or docs.
-compatibility: Designed for any AI agent working on the @posthog/warlock repo.
-metadata:
-  author: posthog
-  domain: security-scanning
-  version: "0.1"
+version: "0.1"
 ---
 
 # Working on the Warlock
