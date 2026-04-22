@@ -33,6 +33,7 @@ Every rule's `meta:` block must include:
 | Field | Type | Allowed values | Purpose |
 | --- | --- | --- | --- |
 | `description` | string | free text | Plain-language sentence describing what this rule catches. Ends up in logs and alerts — write it for a human on-call. |
+| `remediation` | string | free text | Plain-language guidance for what to do about the match. Rule-specific — consumers surface this to the developer or agent whose code triggered the rule. |
 | `severity` | string | `critical`, `high`, `medium`, `low` | Match severity to real-world impact, not detection confidence. See [README § API stability](README.md#api-stability). |
 | `category` | string | any value in `CATEGORIES` | Must be an existing category (see `src/scanner/types.ts`). Do not add one inline — see *Category-addition policy* below. |
 | `action` | string | `block`, `revert`, `warn` | Rule author's recommendation to the consumer. Not a command — consumers decide what to actually do. |
