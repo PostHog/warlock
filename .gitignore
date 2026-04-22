@@ -22,7 +22,8 @@ Thumbs.db
 *~
 
 # AI tooling
-.claude/
+.claude/settings.json
+.claude/settings.local.json
 
 # Package artifacts
 *.tgz
