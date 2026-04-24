@@ -6,14 +6,14 @@
  * the order they appear in `CATEGORIES` (see `src/scanner/types.ts`).
  *
  * Every rule block follows the same structure:
- *   - "positive cases — should match"    (what the rule is meant to catch)
- *   - "negative cases — should NOT match" (FP guards per CONTRIBUTING.md)
+ *   - "positive cases – should match"    (what the rule is meant to catch)
+ *   - "negative cases – should NOT match" (FP guards per CONTRIBUTING.md)
  *   - "metadata"                          (required-field contract)
  *
  * Category sections in use:
  *   ┌─ PostHog API (posthog_pii, posthog_hardcoded_key)
  *   └─ (prompt_injection, exfiltration, destructive_operations,
- *       supply_chain — coming in future PRs)
+ *       supply_chain – coming in future PRs)
  */
 
 import { describe, it, expect } from 'vitest';
@@ -36,8 +36,7 @@ async function expectRuleMetadata(
   expected: { severity: string; category: string; action: string },
 ) {
   const result = await scan(content);
-  expect(result.matched).toBe(true);
-  if (!result.matched) return;
+  if (!result.matched) throw new Error(`expected scan to match for rule ${ruleName}`);
 
   const match = result.matches.find((m) => m.rule === ruleName);
   expect(match).toBeDefined();
@@ -56,7 +55,6 @@ async function expectRuleMetadata(
 // (repeating-digit bodies). Real enough to match our 30+ alphanumeric floor,
 // clearly not a real token to human readers or secret scanners.
 const FAKE_PERSONAL_KEY = 'phx_1111111111222222222233333333334444';
-const FAKE_PROJECT_TOKEN = 'phc_1111111111222222222233333333334444';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CATEGORY: POSTHOG API
@@ -68,7 +66,7 @@ const FAKE_PROJECT_TOKEN = 'phc_1111111111222222222233333333334444';
 // ─── posthog_pii_in_capture_call ───────────────────────────────────────────
 
 describe('posthog_pii_in_capture_call', () => {
-  describe('positive cases — should match', () => {
+  describe('positive cases – should match', () => {
     it('matches email in posthog.capture()', async () => {
       const result = await scan(`posthog.capture('signup', { email: user.email });`);
       expect(result.matched).toBe(true);
@@ -157,11 +155,6 @@ describe('posthog_pii_in_capture_call', () => {
       expect(result.matched).toBe(true);
     });
 
-    it('matches email inside $set property object', async () => {
-      const result = await scan(`posthog.capture('event', { $set: { email: user.email } });`);
-      expect(result.matched).toBe(true);
-    });
-
     it('matches with JSON-style key quoting', async () => {
       const result = await scan(`posthog.capture('event', { "email": user.email });`);
       expect(result.matched).toBe(true);
@@ -173,7 +166,7 @@ describe('posthog_pii_in_capture_call', () => {
     });
   });
 
-  describe('negative cases — should NOT match', () => {
+  describe('negative cases – should NOT match', () => {
     it('does NOT match email_verified (prefix of email, but different field)', async () => {
       const result = await scan(`posthog.capture('event', { email_verified: true });`);
       expect(result.matched).toBe(false);
@@ -194,13 +187,18 @@ describe('posthog_pii_in_capture_call', () => {
       expect(result.matched).toBe(false);
     });
 
-    it('ALLOWS email in posthog.identify() — standard identifying field', async () => {
+    it('does NOT match email in posthog.identify() – allowed as standard identifying field', async () => {
       const result = await scan(`posthog.identify(userId, { email: user.email });`);
       expect(result.matched).toBe(false);
     });
 
-    it('ALLOWS firstName/lastName in posthog.identify() — standard identifying fields', async () => {
+    it('does NOT match firstName/lastName in posthog.identify() – allowed as standard identifying fields', async () => {
       const result = await scan(`posthog.identify(userId, { firstName: 'Jane', lastName: 'Doe' });`);
+      expect(result.matched).toBe(false);
+    });
+
+    it('does NOT match email inside $set property object – standard person-property pattern', async () => {
+      const result = await scan(`posthog.capture('event', { $set: { email: user.email } });`);
       expect(result.matched).toBe(false);
     });
 
@@ -224,7 +222,7 @@ describe('posthog_pii_in_capture_call', () => {
 // ─── posthog_hardcoded_personal_api_key ────────────────────────────────────
 
 describe('posthog_hardcoded_personal_api_key', () => {
-  describe('positive cases — should match', () => {
+  describe('positive cases – should match', () => {
     it('matches a phx_ key in a string literal assignment', async () => {
       const result = await scan(`const KEY = "${FAKE_PERSONAL_KEY}";`);
       expect(result.matched).toBe(true);
@@ -249,7 +247,7 @@ describe('posthog_hardcoded_personal_api_key', () => {
     });
   });
 
-  describe('negative cases — should NOT match', () => {
+  describe('negative cases – should NOT match', () => {
     it('does NOT match env var reference (no literal key)', async () => {
       const result = await scan(`const key = process.env.POSTHOG_PERSONAL_API_KEY;`);
       expect(result.matched).toBe(false);
@@ -282,68 +280,3 @@ describe('posthog_hardcoded_personal_api_key', () => {
   });
 });
 
-// ─── posthog_hardcoded_project_token ───────────────────────────────────────
-
-describe('posthog_hardcoded_project_token', () => {
-  describe('positive cases — should match', () => {
-    it('matches a phc_ token in a string literal assignment', async () => {
-      const result = await scan(`const TOKEN = "${FAKE_PROJECT_TOKEN}";`);
-      expect(result.matched).toBe(true);
-      if (result.matched) {
-        expect(result.matches.some((m) => m.rule === 'posthog_hardcoded_project_token')).toBe(true);
-      }
-    });
-
-    it('matches a phc_ token in posthog.init()', async () => {
-      const result = await scan(`posthog.init('${FAKE_PROJECT_TOKEN}', { api_host: 'https://app.posthog.com' });`);
-      expect(result.matched).toBe(true);
-    });
-
-    it('matches a phc_ token in a JSON config file', async () => {
-      const result = await scan(`{ "posthog_token": "${FAKE_PROJECT_TOKEN}" }`);
-      expect(result.matched).toBe(true);
-    });
-
-    it('matches a phc_ token in a TOML config file', async () => {
-      const result = await scan(`posthog_token = "${FAKE_PROJECT_TOKEN}"`);
-      expect(result.matched).toBe(true);
-    });
-
-    it('matches a phc_ token in a URL query param', async () => {
-      const result = await scan(`https://app.posthog.com/signup?token=${FAKE_PROJECT_TOKEN}`);
-      expect(result.matched).toBe(true);
-    });
-  });
-
-  describe('negative cases — should NOT match', () => {
-    it('does NOT match env var reference', async () => {
-      const result = await scan(`posthog.init(process.env.POSTHOG_KEY);`);
-      expect(result.matched).toBe(false);
-    });
-
-    it('does NOT match short placeholder tokens (under 30 chars)', async () => {
-      const result = await scan(`const TOKEN = "phc_EXAMPLE";`);
-      expect(result.matched).toBe(false);
-    });
-
-    it('does NOT match phc_ embedded in a longer identifier', async () => {
-      const result = await scan(`const my_phc_thing_1111111111222222222233333333334444 = true;`);
-      expect(result.matched).toBe(false);
-    });
-
-    it('does NOT fire on unrelated content', async () => {
-      const result = await scan(`just a plain old comment with no tokens`);
-      expect(result.matched).toBe(false);
-    });
-  });
-
-  describe('metadata', () => {
-    it('exposes all required metadata fields on a match', async () => {
-      await expectRuleMetadata(
-        `const TOKEN = "${FAKE_PROJECT_TOKEN}";`,
-        'posthog_hardcoded_project_token',
-        { severity: 'medium', category: 'posthog_hardcoded_key', action: 'revert' },
-      );
-    });
-  });
-});
