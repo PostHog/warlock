@@ -10,7 +10,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc && cp -r src/scanner/rules dist/scanner/rules",
+    "build": "tsc && mkdir -p dist/scanner/rules && cp src/scanner/rules/*.yar dist/scanner/rules/",
     "test": "vitest run",
     "test:watch": "vitest"
   },

@@ -6,7 +6,7 @@ version: "0.1"
 
 # Working on the Warlock
 
-The Warlock is a security-critical YARA-based content scanner for PostHog's agentic flows. This skill exists so AI agents don't have to reconstruct the project's charter and rules from source code alone. It is intentionally thin — the authoritative sources are the [README](../../../README.md) and [CONTRIBUTING](../../../CONTRIBUTING.md). Follow the links when you need depth.
+The Warlock is a security-critical YARA-based content scanner for PostHog's agentic flows. This skill exists so AI agents don't have to reconstruct the project's charter and rules from source code alone. It is intentionally thin – the authoritative sources are the [README](../../../README.md) and [CONTRIBUTING](../../../CONTRIBUTING.md). Follow the links when you need depth.
 
 ## When to use this skill
 
@@ -22,7 +22,7 @@ The Warlock must never become any of the following. If the change you are consid
 
 1. A general-purpose linter or code-quality tool (the Warlock is security-only)
 2. A policy or enforcement engine that takes action (the Warlock detects; consumers decide)
-3. An orchestration engine that dictates when or where to scan (the Warlock is engine-only — no phase, tool, or workflow awareness)
+3. An orchestration engine that dictates when or where to scan (the Warlock is engine-only – no phase, tool, or workflow awareness)
 4. A wizard-specific tool (the Warlock must serve context-mill and future consumers equally)
 
 Full reasoning: [README § Scope and anti-goals](../../../README.md#scope-and-anti-goals).
@@ -39,7 +39,7 @@ Run through the checklist in [CONTRIBUTING § Rule-writing guide](../../../CONTR
 
 ## Before adding a category
 
-`CATEGORIES` is append-only. New categories are an API commitment — once shipped, they cannot be renamed or removed without a major version bump and a migration path. See [README § API stability](../../../README.md#api-stability).
+`CATEGORIES` is append-only. New categories are an API commitment – once shipped, they cannot be renamed or removed without a major version bump and a migration path. See [README § API stability](../../../README.md#api-stability).
 
 Before proposing one, confirm:
 
@@ -63,7 +63,7 @@ Every PR description must state (a) the problem this change addresses in one to 
 
 ## Further reading
 
-- [README.md](../../../README.md) — charter, audience, design decisions, API stability, public API reference
-- [CONTRIBUTING.md](../../../CONTRIBUTING.md) — contribution process, rule-writing guide, category-addition policy
-- [INTEGRATING.md](../../../INTEGRATING.md) — guide for engineers integrating the Warlock into a consumer application; update this when changing the public API
-- [.github/pull_request_template.md](../../../.github/pull_request_template.md) — PR template used for every Warlock PR
+- [README.md](../../../README.md) – charter, audience, design decisions, API stability, public API reference
+- [CONTRIBUTING.md](../../../CONTRIBUTING.md) – contribution process, rule-writing guide, category-addition policy
+- [INTEGRATING.md](../../../INTEGRATING.md) – guide for engineers integrating the Warlock into a consumer application; update this when changing the public API
+- [.github/pull_request_template.md](../../../.github/pull_request_template.md) – PR template used for every Warlock PR

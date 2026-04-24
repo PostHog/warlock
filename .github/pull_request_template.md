@@ -36,5 +36,5 @@ How did you verify this change?
 - [ ] Existing tests pass (`pnpm test`)
 - [ ] Build succeeds (`pnpm build`)
 - [ ] For new rules: added a positive-match test (content that *should* match)
-- [ ] For new rules: added a negative-match test (similar content that should *not* match — guards against false positives)
+- [ ] For new rules: added a negative-match test (similar content that should *not* match – guards against false positives)
 - [ ] For API changes: verified consuming projects (wizard, context-mill) against the change

@@ -7,7 +7,7 @@ let rulesPromise: Promise<any> | null = null;
 
 async function loadRules(): Promise<any> {
   // Dynamic import bridges the gap between warlock (CommonJS)
-  // and yara-x (ES Module — they don't otherwise interoperate).
+  // and yara-x (ES Module – they don't otherwise interoperate).
   const yaraX = await import('@virustotal/yara-x');
 
   // yara-x's default init uses fetch() which doesn't work in Node.

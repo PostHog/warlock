@@ -6,7 +6,7 @@
  * YARA rule categories the Warlock recognizes. All categories are security-focused.
  *
  * API contract: this list is append-only. Values may be added over time, but
- * never removed or renamed — consumers rely on these strings for routing logic.
+ * never removed or renamed – consumers rely on these strings for routing logic.
  * If a category becomes obsolete, stop writing rules for it; leave the value.
  *
  * See README.md#api-stability for the full rule and contingency policy.
@@ -24,7 +24,7 @@ export type Category = (typeof CATEGORIES)[number];
 
 /**
  * Severity levels for rule metadata.
- * Append-only — add new levels only, never remove or rename.
+ * Append-only – add new levels only, never remove or rename.
  * See README.md#api-stability for the full rule and contingency policy.
  */
 export type Severity = 'critical' | 'high' | 'medium' | 'low';
@@ -52,7 +52,7 @@ export interface ScanMatch {
 
 /**
  * Result of scanning content against loaded rules.
- * Discriminated union — TypeScript narrows based on the `matched` field.
+ * Discriminated union – TypeScript narrows based on the `matched` field.
  */
 export type ScanResult =
   | { matched: false }
