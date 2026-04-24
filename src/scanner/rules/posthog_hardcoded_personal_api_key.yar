@@ -11,7 +11,7 @@ rule posthog_hardcoded_personal_api_key
         remediation = "Rotate the key in the PostHog admin UI and replace the hardcoded value with an environment variable. Audit recent access – committed keys can be used immediately."
         severity = "critical"
         category = "posthog_hardcoded_key"
-        action = "revert"
+        action = "remediate"
 
     strings:
         $phx_key = /\bphx_[a-zA-Z0-9]{30,}/
