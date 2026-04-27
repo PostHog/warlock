@@ -1,18 +1,11 @@
-// Catches exfiltration patterns planted inside a GitHub Actions
-// workflow. The attack shape mirrors the package.json one: an agent
-// edits a workflow so that on the next push or PR, GitHub's runner
-// reads a secret (env var, ${{ secrets.X }}, or credential file) and
-// ships it out. Runners have access to org secrets and run before a
-// human sees anything, which is why severity is critical.
+// Catches exfil patterns planted inside a GitHub Actions workflow: an
+// agent edits the workflow so the runner ships a secret on next push/PR.
+// Critical because runners hold org secrets and run before human review.
 //
-// Payload list is intentionally narrow. Normal CI curls things
-// constantly, so a generic "curl + secret" pattern would drown the
-// consumer in false positives. The patterns here are shapes that are
-// almost never legitimate in CI (raw TCP, credential-file reads,
-// gist creation, DNS smuggling, secrets piped to netcat).
+// Payload list is narrow on purpose – generic "curl + secret" would drown
+// CI in FPs. Patterns here are shapes that are almost never legit in CI.
 //
-// Out of scope: composite actions (action.yml with `runs: { using:
-// composite }`). Same attack surface, different anchor – separate rule.
+// Out of scope: composite actions (action.yml), this will be a separate rule.
 
 rule supply_chain_github_workflow_exfil
 {
@@ -33,21 +26,18 @@ rule supply_chain_github_workflow_exfil
         // base64 piped to a network tool
         $payload_base64_to_net = /\bbase64\b[^\n]{0,200}\|\s*(curl|wget|nc\b|netcat\b|socat)/
 
-        // Credential file read and piped to a network tool.
-        // The .env pattern matches both dotfile prefix (.env, .env.local) and
-        // basename suffix (secrets.env, app.env, config.env) – mirrors
-        // $pipe_cred_file_to_net in exfiltration_secret_via_shell, keep in sync.
+        // Cred file read and piped to a network tool.
+        // Mirrors $pipe_cred_file_to_net in exfiltration_secret_via_shell – keep in sync.
         $payload_cred_file_to_net = /\b(cat|grep|tail|head|awk|sed)\s+[^\n]{0,100}([A-Za-z0-9_-]*\.env(\.[a-z]+)?|~\/\.(aws|ssh|kube|docker|gnupg)|\.netrc|secrets\.ya?ml|credentials\.json)[^\n]{0,100}\|\s*(curl|wget|nc\b|netcat\b|socat)/i
 
-        // Credential file pulled by curl / wget / scp / rsync.
-        // The .env pattern matches both dotfile prefix and basename suffix –
-        // mirrors $cred_file_remote in exfiltration_secret_via_shell, keep in sync.
+        // Cred file pulled by curl / wget / scp / rsync.
+        // Mirrors $cred_file_remote in exfiltration_secret_via_shell – keep in sync.
         $payload_cred_file_remote = /\b(curl|wget|scp|rsync)\b[^\n]{0,200}([A-Za-z0-9_-]*\.env(\.(production|local|staging|dev|development|prod|test))?|~\/\.(aws|ssh|kube|docker|gnupg)|id_rsa|id_ed25519|\.netrc|secrets\.ya?ml|credentials\.json|\.kube\/config|\.docker\/config\.json)/i
 
         // DNS-based exfil: dig / nslookup / host with a secret smuggled into the hostname
         $payload_dns_exfil = /\b(dig|nslookup|host)\s[^\n]{0,100}\$\{?[A-Z_]*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|API|PRIVATE|ACCESS|PASSPHRASE|JWT|SESSION|COOKIE)/i
 
-        // gh gist create – creating a gist in CI is almost always exfil (Tom's finding)
+        // gh gist create – creating a gist in CI is almost always exfil
         $payload_gh_gist_create = /\bgh\s+gist\s+create\b/
 
         // ${{ secrets.X }} piped to a raw data-sink (netcat, /dev/tcp, file upload)

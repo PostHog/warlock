@@ -1,22 +1,12 @@
-// Catches shell commands that pair a secret (env var, credentials file,
+// Catches shell commands that pair a secret (env var, credential file,
 // PostHog API key) with a tool that can move data off the machine.
-// Broader than "curl $TOKEN" – covers network tools (curl, wget,
-// httpie, nc, socat), language one-liners (python -c, node -e),
-// DNS smuggling (dig, nslookup), remote-copy tools (scp, rsync, ssh),
-// PowerShell web cmdlets, bash's /dev/tcp channel, and the `gh` CLI
-// (api with destructive HTTP methods, gist create). Bounded .{0,200}
-// windows keep the patterns from grabbing unrelated text further
-// along in a shell script.
 //
-// Credential-file lexicon: the .env / dotfile / credentials patterns
-// in $pipe_cred_file_to_net and $cred_file_remote are the canonical
-// list. supply_chain_package_json_exfil.yar and
-// supply_chain_github_workflow_exfil.yar mirror the same list –
-// keep all three in sync when adding or refining paths.
+// Cred-file lexicon ($pipe_cred_file_to_net, $cred_file_remote) is the
+// canonical list. supply_chain_package_json_exfil.yar and
+// supply_chain_github_workflow_exfil.yar mirror it – keep all three in sync.
 //
-// Known FP: legitimate operational commands (e.g. curl to an internal
-// API with a real auth header) will fire. Consumers that need
-// finer-grained scoping should allow-list known-good destinations.
+// Known false positive: legitimate ops commands (curl to an internal API with a real
+// auth header) will fire. Consumers should allow-list known-good destinations.
 
 rule exfiltration_secret_via_shell
 {
@@ -40,9 +30,7 @@ rule exfiltration_secret_via_shell
         // Language one-liner reaching for a shell-style $SECRET env var
         $lang_oneliner_shell_var = /\b(python3?|node|perl|ruby)\s+-[ce]\b[^\n]{0,200}\$\{?[A-Z_]*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|API|PRIVATE|ACCESS|PASSPHRASE|JWT|SESSION|COOKIE)/i
 
-        // Language one-liner reaching for a secret via language-native env
-        // access (os.environ[...], process.env.X, ENV['X']) — realistic
-        // exfil shape because these commands usually inline the env-read
+        // Language one-liner reading a secret via os.environ / process.env / ENV[]
         $lang_oneliner_env_access = /\b(python3?|node|perl|ruby)\s+-[ce]\b[^\n]{0,400}(os\.environ|process\.env|ENV\[)[^\n]{0,40}(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|API|PRIVATE|ACCESS|PASSPHRASE|JWT|SESSION|COOKIE)/i
 
         // curl uploading a file out (--upload-file / -T / -F file=@...)
@@ -51,9 +39,8 @@ rule exfiltration_secret_via_shell
         // Secret-shaped env var piped into a network tool
         $pipe_env_secret_to_net = /\$\{?[A-Z_]*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|API|PRIVATE|ACCESS|PASSPHRASE|JWT|SESSION|COOKIE)[^\n]{0,200}\|\s*(curl|wget|nc\b|netcat\b|http\s|httpie|socat)/i
 
-        // Credential file (.env, ~/.aws, ~/.ssh, etc.) read and piped to network.
-        // The .env pattern matches both dotfile prefix (.env, .env.local) and
-        // basename suffix (secrets.env, app.env, config.env) – Tom's H4.
+        // Cred file (.env, ~/.aws, ~/.ssh, etc.) read and piped to network.
+        // .env matches dotfile prefix + basename suffix.
         $pipe_cred_file_to_net = /\b(cat|grep|tail|head|awk|sed)\s+[^\n]{0,100}([A-Za-z0-9_-]*\.env(\.[a-z]+)?|~\/\.(aws|ssh|kube|docker|gnupg)|\.netrc|secrets\.ya?ml|credentials\.json)[^\n]{0,100}\|\s*(curl|wget|nc\b|netcat\b|http\s|httpie|socat)/i
 
         // Base64-encode a secret and pipe it out (common obfuscation)
@@ -62,9 +49,8 @@ rule exfiltration_secret_via_shell
         // PostHog personal API key or project token shipped to a URL
         $posthog_key_to_net = /\b(curl|wget)\b[^\n]{0,200}ph[cx]_[a-zA-Z0-9]{30,}/
 
-        // curl / wget / scp / rsync reaching for a credential file.
-        // The .env pattern matches both dotfile prefix (.env, .env.production)
-        // and basename suffix (secrets.env, app.env, config.env) – Tom's H4.
+        // curl / wget / scp / rsync pulling a cred file.
+        // .env matches dotfile prefix + basename suffix.
         $cred_file_remote = /\b(curl|wget|scp|rsync)\b[^\n]{0,200}([A-Za-z0-9_-]*\.env(\.(production|local|staging|dev|development|prod|test))?|~\/\.(aws|ssh|kube|docker|gnupg)|id_rsa|id_ed25519|\.netrc|secrets\.ya?ml|credentials\.json|\.kube\/config|\.docker\/config\.json)/i
 
         // DNS-based exfil: dig / nslookup with a secret smuggled into hostname
@@ -82,16 +68,10 @@ rule exfiltration_secret_via_shell
         // ssh running a remote command that reaches for a secret
         $ssh_remote_env_secret = /\bssh\s[^\n]{0,200}\$\{?[A-Z_]*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|API|PRIVATE|ACCESS|PASSPHRASE|JWT|SESSION|COOKIE)/i
 
-        // gh api with a write method (POST/PUT/PATCH/DELETE) – uses
-        // the runner's GH_TOKEN to mutate GitHub via the REST API,
-        // a clean exfil channel that an attacker can use to create
-        // a gist, push a release asset, or write to an issue (Tom's H5).
+        // gh api with a write method – uses GH_TOKEN as a clean exfil channel.
         $gh_api_destructive = /\bgh\s+api\b[^\n]{0,200}-X\s+(POST|PUT|PATCH|DELETE)\b/
 
-        // gh gist create – creates a gist using the runner's GH_TOKEN.
-        // Workflow context is already covered in
-        // supply_chain_github_workflow_exfil; this catches the shell
-        // form (developer terminal, agent shell command) (Tom's H5).
+        // gh gist create – shell form. Workflow form is in supply_chain_github_workflow_exfil.
         $gh_gist_create = /\bgh\s+gist\s+create\b/
 
     condition:
