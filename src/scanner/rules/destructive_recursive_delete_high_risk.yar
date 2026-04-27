@@ -1,14 +1,8 @@
-// Catches recursive deletions aimed at dangerous targets: the root
-// filesystem, the home directory, a system path, a bare wildcard, or
-// an unquoted shell variable (which expands to who-knows-what).
-// sudo in front of any recursive delete bumps the whole command into
-// this rule regardless of target.
-//
-// Covers rm -rf / -fr / -Rf variants, the long form
-// --recursive --force, and find -delete / find -exec rm. See the
-// companion rule destructive_recursive_delete for everyday cleanup
-// cases. When both rules fire on the same content, consumers should
-// surface this one (the critical severity) to the developer.
+// Catches recursive deletions aimed at dangerous targets (root, home,
+// system paths, bare wildcards, unquoted shell variables) or run under
+// sudo. Critical + block because a typo or unset variable here can
+// wipe the machine. See destructive_recursive_delete for the everyday
+// cleanup companion; if both fire, surface this one.
 
 rule destructive_recursive_delete_high_risk
 {

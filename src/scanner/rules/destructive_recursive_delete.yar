@@ -1,14 +1,8 @@
-// Fires on any recursive deletion — rm -rf / -fr / -Rf, the long
-// form --recursive --force, find -delete, and find -exec rm. Medium
-// severity + warn action because legitimate cleanup (rm -rf
-// node_modules, rm -rf build/) is a daily occurrence; consumers
-// allow-list the everyday patterns and keep visibility on the rest.
-//
-// The companion rule destructive_recursive_delete_high_risk fires in
-// addition to this one when the target is dangerous (root, home,
-// system paths, unquoted variables) or the command is run under sudo.
-// Consumers seeing both matches on the same input should prefer the
-// high-risk severity.
+// Fires on any recursive deletion – rm -rf and variants, find -delete,
+// find -exec rm. Medium + warn because legitimate cleanup (rm -rf
+// node_modules, build/) is routine; consumers allow-list the everyday
+// patterns. See destructive_recursive_delete_high_risk for the
+// dangerous-target and sudo cases – when both fire, surface that one.
 
 rule destructive_recursive_delete
 {

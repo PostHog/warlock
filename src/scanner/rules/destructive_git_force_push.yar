@@ -1,13 +1,9 @@
 // Fires on any git force push or remote-ref deletion regardless of
-// branch name. Covers --force, -f, --force-with-lease, --delete, and
-// the older "git push remote :branch" deletion syntax. Medium + warn
-// because force-pushing a short-lived feature branch is routine; the
-// companion rule destructive_git_force_push_protected_branch covers
-// the critical case where the target is a protected branch.
-//
-// --force-with-lease lives here (not in the protected-branch rule)
-// because it's designed to be the safer alternative — it aborts if
-// the remote has commits the local ref doesn't know about.
+// branch. Covers --force, -f, --force-with-lease, --delete, and the
+// "git push remote :branch" deletion syntax. Medium + warn because
+// force-pushing a short-lived feature branch is routine; companion
+// rule destructive_git_force_push_protected_branch handles the
+// critical case where the target is a protected branch.
 
 rule destructive_git_force_push
 {

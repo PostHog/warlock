@@ -1,18 +1,11 @@
-// Catches install commands that reach for a bare "posthog" package in
-// the JS ecosystem — npm, pnpm, yarn, bun, deno. PostHog's JS SDKs
-// are always suffixed (posthog-js, posthog-node, posthog-react-native,
-// etc.), so a bare `posthog` install in JS is either a typo or a
-// supply-chain attack (the bare name is available on npm and could be
-// compromised or squatted).
+// Catches install commands reaching for a bare "posthog" package in
+// JS (npm, pnpm, yarn, bun, deno). PostHog's JS SDKs are always
+// suffixed (posthog-js, posthog-node, etc.), so a bare install is
+// either a typo or a supply-chain attack on the bare npm name.
 //
-// Scoped to JS install commands deliberately. `pip install posthog`
-// is correct on Python — the Python SDK publishes under the bare
-// name. Ruby, Go, PHP, Composer etc. have their own conventions and
-// don't fit this rule's shape.
-//
-// Known FP: `npm install posthog posthog-js` in a single command
-// matches both strings, so the condition suppresses the alert. Rare
-// in practice, so accepting the gap.
+// JS-only by design – `pip install posthog` is correct on Python.
+// Known FP: `npm install posthog posthog-js` matches both strings,
+// so the suffixed pattern suppresses the alert.
 
 rule supply_chain_wrong_posthog_package
 {
