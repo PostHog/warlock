@@ -63,6 +63,19 @@ Every new rule needs a vitest test in [`src/scanner/__tests__/`](src/scanner/__t
 1. Exercises a positive case – content that *should* match.
 2. Exercises a negative case – similar content that should *not* match. This is what guards against false positives, which is super important for a security tool!
 
+### Writing test fixtures for secret-detection rules
+
+GitHub's push protection scans pushed files for secret-shaped strings and will block your push if a fixture matches – your fakes look real enough to trip it.
+
+Split the prefix from the body in source so the scanner sees two harmless fragments:
+
+```ts
+// JS reassembles at runtime, so the rule still matches the full string.
+export const FAKE_STRIPE_LIVE_SECRET = 'sk_live_' + '1111222233334444aaaabbbb';
+```
+
+Detection on real leaks is unchanged – real keys come through as one contiguous string in the content being scanned.
+
 ### Skip regex lookarounds
 
 Heads up `yara-x` doesn't support regex lookarounds: `(?=...)`, `(?!...)`, `(?<=...)`, `(?<!...)`. Use one and the rule won't compile.
