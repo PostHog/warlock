@@ -11,6 +11,7 @@
   ],
   "scripts": {
     "build": "tsc && mkdir -p dist/scanner/rules && cp src/scanner/rules/*.yar dist/scanner/rules/",
+    "prepare": "pnpm build",
     "test": "vitest run",
     "test:watch": "vitest"
   },
