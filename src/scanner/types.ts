@@ -18,6 +18,7 @@ export const CATEGORIES = [
   'supply_chain',
   'posthog_pii',
   'posthog_hardcoded_key',
+  'hardcoded_secret',
 ] as const;
 
 export type Category = (typeof CATEGORIES)[number];

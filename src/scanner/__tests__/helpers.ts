@@ -95,3 +95,15 @@ export async function expectRuleMetadata(
 // clearly not a real token to human readers or secret scanners.
 export const FAKE_PERSONAL_KEY = 'phx_1111111111222222222233333333334444';
 export const FAKE_PROJECT_TOKEN = 'phc_1111111111222222222233333333334444';
+export const FAKE_AWS_ACCESS_KEY = 'AKIA1111222233334444';
+export const FAKE_AWS_SESSION_TOKEN = 'ASIA1111222233334444';
+// Stripe fakes split prefix + body in source so GitHub's secret-scanning
+// push protection doesn't flag these fixtures as real keys. JS reassembles
+// at runtime, so the YARA rule still fires on the full string.
+const STRIPE_FAKE_BODY = '1111222233334444aaaabbbb';
+export const FAKE_STRIPE_LIVE_SECRET = 'sk_live_' + STRIPE_FAKE_BODY;
+export const FAKE_STRIPE_LIVE_RESTRICTED = 'rk_live_' + STRIPE_FAKE_BODY;
+export const FAKE_STRIPE_TEST_KEY = 'sk_test_' + STRIPE_FAKE_BODY;
+export const FAKE_STRIPE_PUBLISHABLE_KEY = 'pk_live_' + STRIPE_FAKE_BODY;
+export const FAKE_GITHUB_PAT_CLASSIC = 'ghp_111122223333444455556666777788889999';
+export const FAKE_GITHUB_PAT_SERVER = 'ghs_111122223333444455556666777788889999';
