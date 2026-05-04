@@ -14,24 +14,41 @@ rule destructive_recursive_delete_high_risk
         action = "block"
 
     strings:
-        // rm -rf (and -fr / -Rf / -fR / etc) aimed at root, home, bare
-        // wildcard, bare dot / dotdot, or a canonical system path
+        // ---------- flag alternation (reused across patterns) ----------
+        // The recursive+force flag chunk matches these shapes:
+        //   -[…r…f]  combined flags, r/R before f  (rm -rf, rm -rvf, …)
+        //   -[…f…r]  combined flags, f before r/R   (rm -fr, rm -fR, …)
+        //   -r -f    separate flags, either order
+        //   --recursive --force   long-form flags, either order
+        //
+        // ---------- dangerous-target alternation -------------------
+        // The target chunk matches:
+        //   "/" or '/'      quoted root
+        //   / (end|space|*) bare root
+        //   ~ (end|/|space) home directory
+        //   . or ..         current/parent dir (bare, not ./subdir)
+        //   * (end|space)   bare wildcard
+        //   /etc, /bin, …   canonical system paths
+        // -----------------------------------------------------------
+
+        // rm recursive + force aimed at a dangerous target
         $rm_recursive_dangerous = /\brm\s+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[rR]|-[rR]\s+-f|-f\s+-[rR]|--recursive\s+--force|--force\s+--recursive)\s+("\/"|'\/'|\/($|\s|\*)|~($|\/|\s)|\.($|\s)|\.\.($|\s)|\*($|\s)|\/(etc|bin|sbin|usr|var|home|Users|sys|boot|lib|opt|root)(\/|\s|$))/
 
-        // rm recursive aimed at an unquoted shell variable — one unset
-        // variable turns this into rm -rf /
+        // rm recursive aimed at an unquoted shell variable ($VAR,
+        // ${VAR}) — one unset variable turns this into rm -rf /
         $rm_recursive_unquoted_var = /\brm\s+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[rR]|-[rR]\s+-f|-f\s+-[rR]|--recursive\s+--force|--force\s+--recursive)\s+\$[A-Za-z_{]/
 
-        // sudo + any recursive rm (target doesn't matter, sudo escalates the blast radius)
+        // sudo + any recursive rm — target doesn't matter because sudo
+        // escalates the blast radius of any mistake
         $sudo_rm_recursive = /\bsudo\s+rm\s+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[rR]|-[rR]\s+-f|-f\s+-[rR]|--recursive\s+--force|--force\s+--recursive)\b/
 
-        // find -delete aimed at a dangerous root
+        // find -delete aimed at a dangerous root (same target list)
         $find_delete_dangerous = /\bfind\s+("\/"|'\/'|\/($|\s|\*)|~($|\/|\s)|\.($|\s)|\.\.($|\s)|\*($|\s)|\/(etc|bin|sbin|usr|var|home|Users|sys|boot|lib|opt|root)(\/|\s|$))[^\n]{0,200}-delete\b/
 
         // find -exec rm -rf aimed at a dangerous root
         $find_exec_rm_dangerous = /\bfind\s+("\/"|'\/'|\/($|\s|\*)|~($|\/|\s)|\.($|\s)|\.\.($|\s)|\*($|\s)|\/(etc|bin|sbin|usr|var|home|Users|sys|boot|lib|opt|root)(\/|\s|$))[^\n]{0,200}-exec\s+rm\s+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[rR]\s+-f|--recursive\s+--force)/
 
-        // sudo + find -delete / find -exec rm (blast radius again)
+        // sudo + find with -delete or -exec rm — blast radius again
         $sudo_find_delete = /\bsudo\s+find\b[^\n]{0,200}(-delete|-exec\s+rm\s+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[rR]\s+-f))/
 
     condition:

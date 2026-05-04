@@ -14,13 +14,20 @@ rule destructive_recursive_delete
         action = "warn"
 
     strings:
-        // rm -rf / -fr / -Rf / -fR / -r -f / -f -r / --recursive --force / --force --recursive
+        // rm with recursive + force flags. The flag alternation covers:
+        //   -[…r…f]  combined flags, r/R before f (rm -rf, rm -rvf, …)
+        //   -[…f…r]  combined flags, f before r/R    (rm -fr, rm -fR, …)
+        //   -r -f    separate flags, either order
+        //   --recursive --force   long-form flags, either order
         $rm_recursive = /\brm\s+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[a-zA-Z]*f[a-zA-Z]*[rR]|-[rR]\s+-f|-f\s+-[rR]|--recursive\s+--force|--force\s+--recursive)\b/
 
-        // find ... -delete
+        // find <path> -delete  (up to 200 chars between find and -delete
+        // to stay on the same logical command)
         $find_delete = /\bfind\s+[^\n]{0,200}-delete\b/
 
-        // find ... -exec rm -rf (or -fr / -Rf)
+        // find <path> -exec rm -rf  (same flag alternation as above,
+        // minus the separate-flag and long-form variants which are rare
+        // inside -exec)
         $find_exec_rm = /\bfind\s+[^\n]{0,200}-exec\s+rm\s+(-[a-zA-Z]*[rR][a-zA-Z]*f|-[rR]\s+-f|--recursive\s+--force)/
 
     condition:
