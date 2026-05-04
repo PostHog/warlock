@@ -213,7 +213,7 @@ describe('posthog_pii_in_capture_call', () => {
       await expectRuleMetadata(
         `posthog.capture('signup', { email: user.email });`,
         'posthog_pii_in_capture_call',
-        { severity: 'high', category: 'posthog_pii', action: 'revert' },
+        { severity: 'high', category: 'posthog_pii', action: 'remediate' },
       );
     });
   });
@@ -274,7 +274,7 @@ describe('posthog_hardcoded_personal_api_key', () => {
       await expectRuleMetadata(
         `const KEY = "${FAKE_PERSONAL_KEY}";`,
         'posthog_hardcoded_personal_api_key',
-        { severity: 'critical', category: 'posthog_hardcoded_key', action: 'revert' },
+        { severity: 'critical', category: 'posthog_hardcoded_key', action: 'remediate' },
       );
     });
   });

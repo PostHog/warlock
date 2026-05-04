@@ -15,7 +15,7 @@ rule posthog_pii_in_capture_call
         remediation = "Remove PII from event properties. Use posthog.identify() or person properties instead – https://posthog.com/docs/product-analytics/person-properties"
         severity = "high"
         category = "posthog_pii"
-        action = "revert"
+        action = "remediate"
 
     strings:
         // posthog.capture() – all PII fields are a problem here

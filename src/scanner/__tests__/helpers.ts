@@ -8,6 +8,58 @@
 
 import { expect } from 'vitest';
 import { scan } from '../engine.js';
+import type { Action, Category, Severity } from '../types.js';
+
+/**
+ * Asserts that scanning `content` produces a match from `ruleName`.
+ *
+ * Stronger than `expect(result.matched).toBe(true)` – catches cases where
+ * a companion rule matches but the rule under test is broken or renamed.
+ * Every positive rule test should use this so companion-rule matches can't
+ * silently mask a missing or misnamed rule.
+ */
+export async function expectRuleMatch(content: string, ruleName: string): Promise<void> {
+  const result = await scan(content);
+  expect(result.matched).toBe(true);
+  if (!result.matched) return;
+  const ruleMatched = result.matches.some((m) => m.rule === ruleName);
+  expect(ruleMatched).toBe(true);
+}
+
+/**
+ * Asserts that scanning `content` produces a match from every rule in `ruleNames`.
+ *
+ * Use this for companion-rule pairs where the design intent is that both
+ * rules fire on the same input (e.g. a broad-severity rule and a
+ * high-severity rule that both match on clearly dangerous content). A
+ * per-rule test can't catch the case where one companion silently stops
+ * matching – this helper locks in the joint-firing contract.
+ */
+export async function expectRulesMatch(content: string, ruleNames: string[]): Promise<void> {
+  const result = await scan(content);
+  expect(result.matched).toBe(true);
+  if (!result.matched) return;
+  const firedRules = new Set(result.matches.map((m) => m.rule));
+  for (const ruleName of ruleNames) {
+    expect(firedRules.has(ruleName)).toBe(true);
+  }
+}
+
+/**
+ * Asserts that scanning `content` does NOT produce a match from `ruleName`.
+ *
+ * Other rules may still match – this only asserts the specific rule under
+ * test stayed silent. Use for negative tests, especially when the rule has
+ * a companion that legitimately fires on the same input (e.g. the broad
+ * `destructive_recursive_delete` matches content the high-risk rule should
+ * stay silent on).
+ */
+export async function expectRuleDidNotMatch(content: string, ruleName: string): Promise<void> {
+  const result = await scan(content);
+  if (!result.matched) return;
+  const ruleMatched = result.matches.some((m) => m.rule === ruleName);
+  expect(ruleMatched).toBe(false);
+}
 
 /**
  * Asserts a matched rule exposes every required metadata field
@@ -19,7 +71,7 @@ import { scan } from '../engine.js';
 export async function expectRuleMetadata(
   content: string,
   ruleName: string,
-  expected: { severity: string; category: string; action: string },
+  expected: { severity: Severity; category: Category; action: Action },
 ) {
   const result = await scan(content);
   expect(result.matched).toBe(true);
