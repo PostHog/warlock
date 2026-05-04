@@ -55,6 +55,14 @@ describe(RULE, () => {
       );
     });
 
+    it('matches ~/.gitconfig', async () => {
+      await expectRuleMatch(`cat ~/.gitconfig`, RULE);
+    });
+
+    it('matches ~/.git-credentials', async () => {
+      await expectRuleMatch(`cat ~/.git-credentials`, RULE);
+    });
+
     it('matches a private key even when its public key is also present', async () => {
       // count(priv) = 2 (id_rsa standalone + id_rsa inside id_rsa.pub),
       // count(pub) = 1 → fires.

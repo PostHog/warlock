@@ -29,6 +29,10 @@ rule exfiltration_credential_file_read
         $netrc = /\.netrc\b/
         $gcloud_adc = /\.config\/gcloud\/application_default_credentials\.json\b/
 
+        // Git credential stores – .gitconfig can hold tokens via
+        // credential helpers; .git-credentials stores plaintext creds.
+        $git_creds = /\.(gitconfig|git-credentials)\b/
+
     condition:
-        (#ssh_priv_key > #ssh_pub_key) or $aws_creds or $netrc or $gcloud_adc
+        (#ssh_priv_key > #ssh_pub_key) or $aws_creds or $netrc or $gcloud_adc or $git_creds
 }

@@ -40,6 +40,30 @@ describe(RULE, () => {
     it('matches yarn global add', async () => {
       await expectRuleMatch(`yarn global add some-pkg`, RULE);
     });
+
+    it('matches bun add -g', async () => {
+      await expectRuleMatch(`bun add -g some-pkg`, RULE);
+    });
+
+    it('matches bun add --global', async () => {
+      await expectRuleMatch(`bun add --global some-pkg`, RULE);
+    });
+
+    it('matches deno install -g', async () => {
+      await expectRuleMatch(`deno install -g some-pkg`, RULE);
+    });
+
+    it('matches deno install --global', async () => {
+      await expectRuleMatch(`deno install --global some-pkg`, RULE);
+    });
+
+    it('matches cnpm install -g', async () => {
+      await expectRuleMatch(`cnpm install -g some-pkg`, RULE);
+    });
+
+    it('matches cnpm i --global', async () => {
+      await expectRuleMatch(`cnpm i --global some-pkg`, RULE);
+    });
   });
 
   describe('negative cases – should NOT match', () => {
@@ -65,6 +89,18 @@ describe(RULE, () => {
 
     it('does NOT match prose mentioning "globally"', async () => {
       await expectRuleDidNotMatch(`The package is available globally on npm.`, RULE);
+    });
+
+    it('does NOT match a local bun add', async () => {
+      await expectRuleDidNotMatch(`bun add some-pkg`, RULE);
+    });
+
+    it('does NOT match a local deno install', async () => {
+      await expectRuleDidNotMatch(`deno install some-pkg`, RULE);
+    });
+
+    it('does NOT match a local cnpm install', async () => {
+      await expectRuleDidNotMatch(`cnpm install some-pkg`, RULE);
     });
   });
 

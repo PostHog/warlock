@@ -28,6 +28,18 @@ describe(RULE, () => {
     it('matches gh api with endpoint before -X flag', async () => {
       await expectRuleMatch(`gh api /repos/foo/bar/issues -X POST`, RULE);
     });
+
+    it('matches -X=POST (equals-sign delimiter)', async () => {
+      await expectRuleMatch(`gh api -X=POST /repos/foo/bar/issues`, RULE);
+    });
+
+    it('matches --method=DELETE (equals-sign, long form)', async () => {
+      await expectRuleMatch(`gh api --method=DELETE /repos/foo/bar/issues/1`, RULE);
+    });
+
+    it('matches lowercase method (gh api -X post)', async () => {
+      await expectRuleMatch(`gh api -X post /repos/foo/bar/issues`, RULE);
+    });
   });
 
   describe('negative cases – should NOT match', () => {

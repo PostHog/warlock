@@ -16,9 +16,10 @@ rule exfiltration_gh_api_write
         action = "warn"
 
     strings:
-        // Method flag in either position. Bare `gh api` (default GET)
-        // and `gh api graphql` don't match.
-        $gh_api_write = /\bgh\s+api\s+([^\n]{0,80}\s)?(-X|--method)\s+(POST|PUT|PATCH|DELETE)\b/
+        // Method flag in either position. Delimiter can be a space or `=`
+        // (e.g. -X POST, -X=POST, --method=DELETE). Case insensitive
+        // because the CLI accepts lowercase methods too.
+        $gh_api_write = /\bgh\s+api\s+([^\n]{0,80}\s)?(-X|--method)(\s+|=)(POST|PUT|PATCH|DELETE)\b/i
 
     condition:
         $gh_api_write
