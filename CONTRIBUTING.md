@@ -63,6 +63,23 @@ Every new rule needs a vitest test in [`src/scanner/__tests__/`](src/scanner/__t
 1. Exercises a positive case – content that *should* match.
 2. Exercises a negative case – similar content that should *not* match. This is what guards against false positives, which is super important for a security tool!
 
+### Skip regex lookarounds
+
+Heads up `yara-x` doesn't support regex lookarounds: `(?=...)`, `(?!...)`, `(?<=...)`, `(?<!...)`. Use one and the rule won't compile.
+
+Express the negation in the `condition:` block instead. Define one string for the broad case, one for the subset to exclude, then fire when the counts don't line up:
+
+```yara
+strings:
+    $any_push    = /\bgit\s+push\s+\S+/
+    $origin_push = /\bgit\s+push\s+origin\b/
+
+condition:
+    #any_push > #origin_push
+```
+
+`#name` is YARA's match-count operator, so this reads as "fire when there's at least one `git push` that wasn't to `origin`."
+
 ## Category-addition policy
 
 The `CATEGORIES` array is **append-only** and protected by the API-stability rules in the [README](README.md#api-stability). Adding a new category is a real commitment – once it ships, the value can never be renamed or removed without a major version bump and a documented migration path. So we want to be thoughtful here!
