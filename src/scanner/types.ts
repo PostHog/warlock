@@ -72,3 +72,25 @@ export interface ScanMatch {
 export type ScanResult =
   | { matched: false }
   | { matched: true; matches: ScanMatch[] };
+
+/**
+ * Verdict from LLM triage on a single match.
+ */
+export type TriageVerdict = 'true_positive' | 'false_positive';
+
+/**
+ * A scan match annotated with an LLM triage verdict.
+ */
+export interface TriageMatch extends ScanMatch {
+  triage: {
+    verdict: TriageVerdict;
+    reason: string;
+  };
+}
+
+/**
+ * Callback that consumers provide to connect their own LLM.
+ * Receives a prompt string, returns the LLM's text response.
+ */
+export type LLMProvider = (prompt: string) => Promise<string>;
+
