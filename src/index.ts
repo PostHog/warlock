@@ -10,4 +10,5 @@ export type {
   TriageMatch,
   TriageVerdict,
   LLMProvider,
+  TriageOptions,
 } from './scanner/types.js';

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { triageMatches, buildTriagePrompt, parseTriageResponse } from '../triage.js';
+import { triageMatches, buildTriagePrompt, parseTriageResponse, buildBatches } from '../triage.js';
 import type { ScanMatch, LLMProvider } from '../types.js';
 
 const fakeMatch = (rule: string, category: string): ScanMatch => ({
@@ -125,6 +125,39 @@ describe('parseTriageResponse', () => {
   });
 });
 
+describe('buildBatches', () => {
+  it('puts all matches in one batch when they fit', () => {
+    const matches = [fakeMatch('a', 'supply_chain'), fakeMatch('b', 'exfiltration')];
+    const batches = buildBatches(matches, 1000);
+
+    expect(batches).toHaveLength(1);
+    expect(batches[0].matchIndices).toEqual([0, 1]);
+  });
+
+  it('splits into multiple batches when matches exceed budget', () => {
+    // Create enough matches to exceed the per-batch budget
+    const matches = Array.from({ length: 1000 }, (_, i) =>
+      fakeMatch(`rule_${i}`, 'supply_chain'),
+    );
+    const batches = buildBatches(matches, 1000);
+
+    expect(batches.length).toBeGreaterThan(1);
+
+    // Every match must appear in exactly one batch
+    const allIndices = batches.flatMap((b) => b.matchIndices).sort((a, b) => a - b);
+    expect(allIndices).toEqual(Array.from({ length: 1000 }, (_, i) => i));
+  });
+
+  it('never produces empty batches', () => {
+    const matches = [fakeMatch('a', 'supply_chain')];
+    const batches = buildBatches(matches, 1000);
+
+    for (const batch of batches) {
+      expect(batch.matchIndices.length).toBeGreaterThan(0);
+    }
+  });
+});
+
 describe('triageMatches', () => {
   it('annotates matches with LLM verdicts', async () => {
     const matches = [
@@ -172,5 +205,65 @@ describe('triageMatches', () => {
 
     expect(result).toHaveLength(1);
     expect(result[0].triage.verdict).toBe('true_positive');
+  });
+
+  it('triages all matches across multiple batches when prompt is large', async () => {
+    const matches = Array.from({ length: 1000 }, (_, i) =>
+      fakeMatch(`rule_${i}`, 'supply_chain'),
+    );
+
+    let callCount = 0;
+    const mockProvider: LLMProvider = async (prompt) => {
+      callCount++;
+      const indices = [...prompt.matchAll(/\[(\d+)\] rule:/g)].map((m) => Number(m[1]));
+      return JSON.stringify(
+        indices.map((idx) => ({
+          index: idx,
+          verdict: 'false_positive',
+          reason: `Batch triage for index ${idx}`,
+        })),
+      );
+    };
+
+    const result = await triageMatches('some content', matches, mockProvider);
+
+    expect(callCount).toBeGreaterThan(1);
+    expect(result).toHaveLength(1000);
+    // Every single match must have a verdict — nothing skipped
+    for (let i = 0; i < result.length; i++) {
+      expect(result[i].triage.verdict).toBe('false_positive');
+      expect(result[i].rule).toBe(`rule_${i}`);
+    }
+  });
+
+  it('defaults failed batches to true_positive without stopping other batches', async () => {
+    const matches = Array.from({ length: 1000 }, (_, i) =>
+      fakeMatch(`rule_${i}`, 'supply_chain'),
+    );
+
+    let callCount = 0;
+    const flakyProvider: LLMProvider = async (prompt) => {
+      callCount++;
+      if (callCount === 1) throw new Error('first batch fails');
+      const indices = [...prompt.matchAll(/\[(\d+)\] rule:/g)].map((m) => Number(m[1]));
+      return JSON.stringify(
+        indices.map((idx) => ({
+          index: idx,
+          verdict: 'false_positive',
+          reason: 'safe',
+        })),
+      );
+    };
+
+    const result = await triageMatches('some content', matches, flakyProvider);
+
+    expect(result).toHaveLength(1000);
+    // First batch should have defaulted to true_positive
+    const truePositives = result.filter((r) => r.triage.verdict === 'true_positive');
+    const falsePositives = result.filter((r) => r.triage.verdict === 'false_positive');
+    expect(truePositives.length).toBeGreaterThan(0);
+    expect(falsePositives.length).toBeGreaterThan(0);
+    // Total must equal all matches — nothing skipped
+    expect(truePositives.length + falsePositives.length).toBe(1000);
   });
 });

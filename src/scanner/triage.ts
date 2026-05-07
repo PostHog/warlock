@@ -1,4 +1,4 @@
-import type { ScanMatch, TriageMatch, LLMProvider } from './types.js';
+import type { ScanMatch, TriageMatch, LLMProvider, TriageOptions } from './types.js';
 
 /**
  * Build the prompt sent to the LLM for triage. Exported for testing.
@@ -139,44 +139,122 @@ export function parseTriageResponse(
   );
 }
 
+const DEFAULT_MAX_PROMPT_CHARS = 80_000;
+const PROMPT_OVERHEAD_CHARS = 5_000;
+const MAX_CONTENT_CHARS = 30_000;
+
+function estimateMatchChars(m: ScanMatch): number {
+  return (
+    50 + // index line, labels
+    (m.rule?.length ?? 0) +
+    (m.metadata.category?.length ?? 0) +
+    (m.metadata.severity?.length ?? 0) +
+    (m.metadata.description?.length ?? 0)
+  );
+}
+
+/**
+ * Split matches into batches that each fit within the prompt size limit.
+ * Every match is assigned to exactly one batch — nothing is skipped.
+ */
+export function buildBatches(
+  matches: ScanMatch[],
+  contentChars: number,
+  maxPromptChars: number = DEFAULT_MAX_PROMPT_CHARS,
+): Array<{ matchIndices: number[] }> {
+  const budgetForMatches =
+    maxPromptChars - PROMPT_OVERHEAD_CHARS - Math.min(contentChars, MAX_CONTENT_CHARS);
+
+  const batches: Array<{ matchIndices: number[] }> = [];
+  let currentIndices: number[] = [];
+  let currentSize = 0;
+
+  for (let i = 0; i < matches.length; i++) {
+    const size = estimateMatchChars(matches[i]);
+
+    if (currentSize + size > budgetForMatches && currentIndices.length > 0) {
+      batches.push({ matchIndices: currentIndices });
+      currentIndices = [];
+      currentSize = 0;
+    }
+
+    currentIndices.push(i);
+    currentSize += size;
+  }
+
+  if (currentIndices.length > 0) {
+    batches.push({ matchIndices: currentIndices });
+  }
+
+  return batches;
+}
+
 /**
  * Triage scan matches using a consumer-provided LLM.
  *
- * Fail-safe: if the LLM call fails or returns garbage, all matches
- * default to true_positive. We never silently suppress a match.
+ * If the matches + content exceed a single prompt's budget, they are
+ * split into batches and triaged across multiple LLM calls. Every
+ * match is triaged — nothing is skipped.
+ *
+ * Fail-safe: if an LLM call fails or returns garbage, all matches
+ * in that batch default to true_positive. We never silently suppress
+ * a match.
  */
 export async function triageMatches(
   content: string,
   matches: ScanMatch[],
   provider: LLMProvider,
+  options?: TriageOptions,
 ): Promise<TriageMatch[]> {
   if (matches.length === 0) {
     return [];
   }
 
-  const prompt = buildTriagePrompt(content, matches);
+  const maxPromptChars = options?.maxPromptChars ?? DEFAULT_MAX_PROMPT_CHARS;
+  const batches = buildBatches(matches, content.length, maxPromptChars);
 
-  let raw: string;
-  try {
-    raw = await provider(prompt);
-    if (process.env.WARLOCK_DEBUG) {
-      console.error('[warlock triage] LLM response length:', raw.length);
-      console.error('[warlock triage] LLM response preview:', raw.slice(0, 500));
-    }
-  } catch (err) {
-    if (process.env.WARLOCK_DEBUG) {
-      console.error('[warlock triage] LLM provider error:', err);
-    }
-    return matches.map((m) => ({
-      ...m,
-      triage: {
-        verdict: 'true_positive' as const,
-        reason: 'LLM provider call failed — defaulting to true positive.',
-      },
-    }));
+  if (process.env.WARLOCK_DEBUG) {
+    console.error(`[warlock triage] ${matches.length} matches in ${batches.length} batch(es)`);
   }
 
-  const verdicts = parseTriageResponse(raw, matches.length);
+  // Pre-fill every slot with a fail-safe verdict so nothing is ever missing.
+  const verdicts: Array<{ verdict: 'true_positive' | 'false_positive'; reason: string }> =
+    matches.map(() => ({
+      verdict: 'true_positive' as const,
+      reason: 'Match was not triaged — defaulting to true positive.',
+    }));
+
+  for (let b = 0; b < batches.length; b++) {
+    const batch = batches[b];
+    const batchMatches = batch.matchIndices.map((i) => matches[i]);
+
+    const prompt = buildTriagePrompt(content, batchMatches);
+
+    let raw: string;
+    try {
+      raw = await provider(prompt);
+      if (process.env.WARLOCK_DEBUG) {
+        console.error(`[warlock triage] batch ${b + 1}/${batches.length}: response length ${raw.length}`);
+      }
+    } catch (err) {
+      if (process.env.WARLOCK_DEBUG) {
+        console.error(`[warlock triage] batch ${b + 1}/${batches.length}: provider error:`, err);
+      }
+      for (const idx of batch.matchIndices) {
+        verdicts[idx] = {
+          verdict: 'true_positive' as const,
+          reason: 'LLM provider call failed — defaulting to true positive.',
+        };
+      }
+      continue;
+    }
+
+    const batchVerdicts = parseTriageResponse(raw, batchMatches.length);
+
+    for (let j = 0; j < batch.matchIndices.length; j++) {
+      verdicts[batch.matchIndices[j]] = batchVerdicts[j];
+    }
+  }
 
   return matches.map((m, i) => ({
     ...m,

@@ -94,3 +94,10 @@ export interface TriageMatch extends ScanMatch {
  */
 export type LLMProvider = (prompt: string) => Promise<string>;
 
+/**
+ * Optional configuration for triageMatches().
+ */
+export interface TriageOptions {
+  maxPromptChars?: number; // default: 80000
+}
+
