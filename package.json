@@ -4,6 +4,7 @@
   "description": "Security scanner for PostHog's agentic flows",
   "license": "MIT",
   "private": true,
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "files": [

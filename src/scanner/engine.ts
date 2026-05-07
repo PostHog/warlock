@@ -1,13 +1,14 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { createRequire } from 'node:module';
 import type { ScanResult, ScanMatch, RuleMetadata } from './types.js';
+
+const require = createRequire(import.meta.url);
 
 // Cached compiled-rules promise. Loaded lazily on first scan call.
 let rulesPromise: Promise<any> | null = null;
 
 async function loadRules(): Promise<any> {
-  // Dynamic import bridges the gap between warlock (CommonJS)
-  // and yara-x (ES Module – they don't otherwise interoperate).
   const yaraX = await import('@virustotal/yara-x');
 
   // yara-x's default init uses fetch() which doesn't work in Node.
@@ -18,7 +19,7 @@ async function loadRules(): Promise<any> {
   yaraX.initSync({ module: wasmBytes });
 
   const compiler = new yaraX.Compiler();
-  const rulesDir = path.join(__dirname, 'rules');
+  const rulesDir = path.join(import.meta.dirname, 'rules');
   const ruleFiles = fs.readdirSync(rulesDir).filter((f) => f.endsWith('.yar'));
 
   for (const file of ruleFiles) {
