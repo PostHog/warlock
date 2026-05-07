@@ -15,6 +15,7 @@ rule destructive_git_force_push_protected_branch
         severity = "critical"
         category = "destructive_operations"
         action = "block"
+        scan_context = "command"
 
     strings:
         // git push --force <remote> <protected-branch>

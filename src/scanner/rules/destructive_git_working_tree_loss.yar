@@ -14,6 +14,7 @@ rule destructive_git_working_tree_loss
         severity = "high"
         category = "destructive_operations"
         action = "block"
+        scan_context = "command"
 
     strings:
         // git reset --hard (with or without a target)

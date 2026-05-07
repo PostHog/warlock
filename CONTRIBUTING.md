@@ -37,6 +37,7 @@ Every rule's `meta:` block must include:
 | `severity` | string | `critical`, `high`, `medium`, `low` | Match severity to real-world impact, not detection confidence. See [README § API stability](README.md#api-stability). |
 | `category` | string | any value in `CATEGORIES` | Must be an existing category (see `src/scanner/types.ts`). Do not add one inline – see *Category-addition policy* below. |
 | `action` | string | `block`, `revert`, `warn` | Rule author's recommendation to the consumer. Not a command – consumers decide what to actually do. |
+| `scan_context` | string | `command`, `input`, `output` | What kind of content this rule targets. `command` = shell commands, `input` = content being read, `output` = code being written. Not all consumers use this — batch scanners ignore it — but hook-based consumers filter by it. |
 
 ### Name the rule clearly
 

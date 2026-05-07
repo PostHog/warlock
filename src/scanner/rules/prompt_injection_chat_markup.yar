@@ -13,6 +13,7 @@ rule prompt_injection_chat_markup
         severity = "critical"
         category = "prompt_injection"
         action = "block"
+        scan_context = "input"
 
     strings:
         // ChatML (OpenAI/Qwen/others)

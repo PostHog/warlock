@@ -74,6 +74,14 @@ the Warlock returns *all* matches from *all* rules. If a consumer only cares abo
 - **Why:** Engine-side filtering adds an API surface (options, config) that every consumer has to learn. A filter in consumer code is one line and totally obvious – why complicate it?
 - **When to revisit:** If engine-side filtering ever becomes necessary for performance, we can add it as an optional parameter to `scan()` later. It would be a backward-compatible change.
 
+### `scan_context` metadata
+
+Every rule has a `scan_context` field (`command`, `input`, or `output`) indicating what kind of content it targets. Consumers filter matches by this to fit their own lifecycle — e.g., a pre-execution hook filters for `command`, a file-read hook filters for `input`. Keeps `scan()` simple while giving consumers a clean filtering primitive.
+
+### LLM triage as an opt-in utility
+
+`triageMatches()` is separate from `scan()`. Consumers opt in by providing their own LLM callback — the Warlock owns the prompt and parsing, has no LLM SDK dependencies. All failures default to `true_positive` (never silently suppresses a finding).
+
 ### `action` field as a recommendation, not a command
 
 Every rule's metadata includes an `action` (`block`, `revert`, or `warn`). This is the rule author's *opinion* about how serious the finding is and what the consumer should do – not a directive.
@@ -184,7 +192,7 @@ If a proposed rename can be talked into one of these buckets, the answer is no. 
 
 ## Public API reference
 
-the Warlock exports a single async function and a set of types.
+the Warlock exports a scanning function, an optional LLM triage utility, and a set of types.
 
 ### `scan(content: string): Promise<ScanResult>`
 
@@ -198,6 +206,20 @@ if (result.matched) {
   for (const match of result.matches) {
     console.log(`${match.rule} [${match.metadata.severity}]: ${match.metadata.description}`);
   }
+}
+```
+
+### `triageMatches(content, matches, provider): Promise<TriageMatch[]>`
+
+Optional. Annotates each match with a `true_positive` or `false_positive` verdict using a consumer-provided LLM. All failures default to `true_positive`.
+
+```typescript
+import { scan, triageMatches } from '@posthog/warlock';
+
+const result = await scan(someContent);
+if (result.matched) {
+  const triaged = await triageMatches(someContent, result.matches, myLLMProvider);
+  const threats = triaged.filter(m => m.triage.verdict === 'true_positive');
 }
 ```
 
@@ -217,6 +239,7 @@ interface RuleMetadata {
   description?: string;
   severity?: Severity;
   category?: Category;
+  scan_context?: 'command' | 'input' | 'output';
   [key: string]: string | number | boolean | undefined;
 }
 
@@ -229,6 +252,14 @@ type Category =
   | 'posthog_hardcoded_key';
 
 type Severity = 'critical' | 'high' | 'medium' | 'low';
+
+// LLM triage types
+type LLMProvider = (prompt: string) => Promise<string>;
+type TriageVerdict = 'true_positive' | 'false_positive';
+
+interface TriageMatch extends ScanMatch {
+  triage: { verdict: TriageVerdict; reason: string };
+}
 ```
 
 `CATEGORIES` is also exported as a runtime value (the `as const` array) for consumers that need to iterate over all categories.
@@ -257,21 +288,31 @@ if (result.matched) {
 }
 ```
 
-Filtering by category on the consumer side (the Warlock returns all matches, you pick which ones to act on):
+Filtering by `scan_context` (match the rule to what you're scanning):
 
 ```typescript
 import { scan } from '@posthog/warlock';
 
-const result = await scan(someContent);
+// In a pre-execution hook — only care about command-targeting rules
+const result = await scan(bashCommand);
 if (result.matched) {
-  const injectionFindings = result.matches.filter(
-    (m) => m.metadata.category === 'prompt_injection',
+  const relevant = result.matches.filter(
+    (m) => m.metadata.scan_context === 'command',
   );
-  // ...decide what to do with injectionFindings
 }
 ```
 
-These are minimal examples to get you started. For the full integration guide – filtering trade-offs, response patterns, error handling, performance notes, and versioning guidance – head over to [INTEGRATING.md](INTEGRATING.md) :)
+With LLM triage (consumer provides their own LLM):
+
+```typescript
+import { scan, triageMatches } from '@posthog/warlock';
+
+const result = await scan(someContent);
+if (result.matched) {
+  const triaged = await triageMatches(someContent, result.matches, myLLMProvider);
+  const realThreats = triaged.filter(m => m.triage.verdict === 'true_positive');
+}
+```
 
 ## Development
 

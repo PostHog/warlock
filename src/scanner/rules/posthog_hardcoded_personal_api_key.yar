@@ -12,6 +12,7 @@ rule posthog_hardcoded_personal_api_key
         severity = "critical"
         category = "posthog_hardcoded_key"
         action = "remediate"
+        scan_context = "output"
 
     strings:
         $phx_key = /\bphx_[a-zA-Z0-9]{30,}/

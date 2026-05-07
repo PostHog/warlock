@@ -20,6 +20,7 @@ rule prompt_injection_instruction_override
         severity = "critical"
         category = "prompt_injection"
         action = "block"
+        scan_context = "input"
 
     strings:
         // "ignore / disregard / forget / override / skip / bypass [the]

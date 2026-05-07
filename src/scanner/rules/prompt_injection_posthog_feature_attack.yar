@@ -20,6 +20,7 @@ rule prompt_injection_posthog_feature_attack
         severity = "medium"
         category = "prompt_injection"
         action = "block"
+        scan_context = "input"
 
     strings:
         // Strong-signal features — named tightly enough that the verb +

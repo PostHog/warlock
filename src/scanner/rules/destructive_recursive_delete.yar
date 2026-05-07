@@ -12,6 +12,7 @@ rule destructive_recursive_delete
         severity = "medium"
         category = "destructive_operations"
         action = "warn"
+        scan_context = "command"
 
     strings:
         // rm with recursive + force flags. The flag alternation covers:

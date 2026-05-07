@@ -16,6 +16,7 @@ rule posthog_pii_in_capture_call
         severity = "high"
         category = "posthog_pii"
         action = "remediate"
+        scan_context = "output"
 
     strings:
         // posthog.capture() – all PII fields are a problem here

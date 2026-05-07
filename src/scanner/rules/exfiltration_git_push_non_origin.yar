@@ -15,6 +15,7 @@ rule exfiltration_git_push_non_origin
         severity = "high"
         category = "exfiltration"
         action = "warn"
+        scan_context = "command"
 
     strings:
         // Any push to a remote argument (identifier or URL). Optional

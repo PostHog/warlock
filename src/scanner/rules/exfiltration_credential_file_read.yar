@@ -15,6 +15,7 @@ rule exfiltration_credential_file_read
         severity = "critical"
         category = "exfiltration"
         action = "block"
+        scan_context = "command"
 
     strings:
         // SSH private keys – id_rsa, id_ed25519, id_ecdsa, id_dsa.

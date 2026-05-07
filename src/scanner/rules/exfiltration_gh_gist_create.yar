@@ -13,6 +13,7 @@ rule exfiltration_gh_gist_create
         severity = "high"
         category = "exfiltration"
         action = "block"
+        scan_context = "command"
 
     strings:
         $gh_gist_create = /\bgh\s+gist\s+create\b/

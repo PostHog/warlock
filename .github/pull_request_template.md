@@ -37,4 +37,5 @@ How did you verify this change?
 - [ ] Build succeeds (`pnpm build`)
 - [ ] For new rules: added a positive-match test (content that *should* match)
 - [ ] For new rules: added a negative-match test (similar content that should *not* match – guards against false positives)
+- [ ] For new rules: includes `scan_context` metadata (`command`, `input`, or `output`)
 - [ ] For API changes: verified consuming projects (wizard, context-mill) against the change

@@ -17,6 +17,7 @@ rule prompt_injection_base64_in_comment
         severity = "critical"
         category = "prompt_injection"
         action = "block"
+        scan_context = "input"
 
     strings:
         // JS/TS/Go/Rust/Java etc single-line comment: "// <base64 40+>"

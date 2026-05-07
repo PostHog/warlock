@@ -14,6 +14,7 @@ rule exfiltration_gh_api_write
         severity = "high"
         category = "exfiltration"
         action = "warn"
+        scan_context = "command"
 
     strings:
         // Method flag in either position. Delimiter can be a space or `=`

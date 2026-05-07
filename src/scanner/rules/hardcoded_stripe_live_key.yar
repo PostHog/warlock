@@ -11,6 +11,7 @@ rule hardcoded_stripe_live_key
         severity = "critical"
         category = "hardcoded_secret"
         action = "remediate"
+        scan_context = "output"
 
     strings:
         $stripe_live_key = /\b(sk|rk)_live_[a-zA-Z0-9]{24,}/

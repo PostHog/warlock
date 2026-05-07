@@ -14,6 +14,7 @@ rule prompt_injection_posthog_integration_attack
         severity = "medium"
         category = "prompt_injection"
         action = "block"
+        scan_context = "input"
 
     strings:
         // Verb + bare "posthog" or "posthog-<suffix>" — covers the SDK

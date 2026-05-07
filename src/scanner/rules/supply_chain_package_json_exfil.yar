@@ -13,6 +13,7 @@ rule supply_chain_package_json_exfil
         severity = "critical"
         category = "supply_chain"
         action = "block"
+        scan_context = "input"
 
     strings:
         // Anchor: content looks like a package.json (has a scripts block)

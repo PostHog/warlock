@@ -12,6 +12,7 @@ rule destructive_recursive_delete_high_risk
         severity = "critical"
         category = "destructive_operations"
         action = "block"
+        scan_context = "command"
 
     strings:
         // ---------- flag alternation (reused across patterns) ----------
