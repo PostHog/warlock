@@ -12,6 +12,7 @@ rule prompt_injection_role_hijack
         severity = "critical"
         category = "prompt_injection"
         action = "block"
+        scan_context = "input"
 
     strings:
         // "you are now [a|an] X" / "you will now [act|be|pretend|roleplay]"

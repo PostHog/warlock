@@ -15,6 +15,7 @@ rule supply_chain_wrong_posthog_package
         severity = "high"
         category = "supply_chain"
         action = "block"
+        scan_context = "command"
 
     strings:
         // JS install command targeting bare "posthog"

@@ -16,6 +16,7 @@ rule exfiltration_secret_via_shell
         severity = "critical"
         category = "exfiltration"
         action = "block"
+        scan_context = "command"
 
     strings:
         // curl / wget with a secret-shaped env var in args or header

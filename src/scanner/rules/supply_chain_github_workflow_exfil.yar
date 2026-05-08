@@ -15,6 +15,7 @@ rule supply_chain_github_workflow_exfil
         severity = "critical"
         category = "supply_chain"
         action = "block"
+        scan_context = "input"
 
     strings:
         // Anchor: top-level jobs: key (every workflow has one)

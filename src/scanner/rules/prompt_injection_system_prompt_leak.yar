@@ -13,6 +13,7 @@ rule prompt_injection_system_prompt_leak
         severity = "high"
         category = "prompt_injection"
         action = "block"
+        scan_context = "input"
 
     strings:
         // "repeat / print / show / reveal / display / output / give me / tell

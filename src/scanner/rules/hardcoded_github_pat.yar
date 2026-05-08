@@ -10,6 +10,7 @@ rule hardcoded_github_pat
         severity = "critical"
         category = "hardcoded_secret"
         action = "remediate"
+        scan_context = "output"
 
     strings:
         $github_pat = /\bgh[psoru]_[A-Za-z0-9]{36,}/

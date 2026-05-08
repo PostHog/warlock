@@ -14,6 +14,7 @@ rule prompt_injection_jailbreak_persona
         severity = "critical"
         category = "prompt_injection"
         action = "block"
+        scan_context = "input"
 
     strings:
         // Activation: "enable/activate/enter/switch to/turn on" + persona

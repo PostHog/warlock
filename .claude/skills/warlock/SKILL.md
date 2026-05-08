@@ -31,7 +31,7 @@ Full reasoning: [README § Scope and anti-goals](../../../README.md#scope-and-an
 
 Run through the checklist in [CONTRIBUTING § Rule-writing guide](../../../CONTRIBUTING.md#rule-writing-guide). In short:
 
-- Required `meta:` fields: `description`, `severity`, `category`, `action`
+- Required `meta:` fields: `description`, `remediation`, `severity`, `category`, `action`, `scan_context`
 - Use an existing `Category` value (see `src/scanner/types.ts`); do not invent one inline
 - Add both a positive-match and a negative-match vitest test
 - Prefer a narrow, specific rule name (e.g., `prompt_injection_ignore_previous`)
@@ -46,6 +46,10 @@ Before proposing one, confirm:
 - It is *security*, not best-practice
 - No existing category fits
 - A security-team consult has happened (per [CONTRIBUTING ownership model](../../../CONTRIBUTING.md#ownership-model))
+
+## LLM triage
+
+the Warlock exports `triageMatches()` as an opt-in utility. It takes scan matches + a consumer-provided LLM callback, returns each match annotated with `true_positive` or `false_positive`. The Warlock owns the prompt and parsing; the consumer owns the LLM. All failures default to `true_positive`.
 
 ## Centralize complexity in the Warlock, not the consumer
 

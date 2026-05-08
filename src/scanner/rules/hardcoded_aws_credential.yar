@@ -10,6 +10,7 @@ rule hardcoded_aws_credential
         severity = "critical"
         category = "hardcoded_secret"
         action = "remediate"
+        scan_context = "output"
 
     strings:
         $aws_credential = /\b(AKIA|ASIA)[A-Z0-9]{16}/

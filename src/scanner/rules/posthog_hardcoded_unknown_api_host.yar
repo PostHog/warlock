@@ -14,6 +14,7 @@ rule posthog_hardcoded_unknown_api_host
         severity = "medium"
         category = "supply_chain"
         action = "warn"
+        scan_context = "output"
 
     strings:
         // Anchor to posthog.init() so unrelated libraries with an

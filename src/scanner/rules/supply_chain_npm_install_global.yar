@@ -14,6 +14,7 @@ rule supply_chain_npm_install_global
         severity = "high"
         category = "supply_chain"
         action = "block"
+        scan_context = "command"
 
     strings:
         // npm install -g | --global, flag in either position

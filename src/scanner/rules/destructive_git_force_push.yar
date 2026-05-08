@@ -13,6 +13,7 @@ rule destructive_git_force_push
         severity = "medium"
         category = "destructive_operations"
         action = "warn"
+        scan_context = "command"
 
     strings:
         // git push --force (long flag)
