@@ -10,6 +10,7 @@ const fakeMatch = (rule: string, category: string): ScanMatch => ({
     category: category as any,
     action: 'block',
   },
+  matchedStrings: [], // empty by default; tests that need a span set it explicitly
 });
 
 describe('buildTriagePrompt', () => {
@@ -23,6 +24,28 @@ describe('buildTriagePrompt', () => {
     expect(prompt).toContain('[0]');
     expect(prompt).toContain('true_positive');
     expect(prompt).toContain('false_positive');
+  });
+
+  it('shows the matched text so the model judges the real trigger', () => {
+    const content = 'Welcome! You are now logged in. Explore freely.';
+    const matches: ScanMatch[] = [
+      {
+        ...fakeMatch('prompt_injection_role_hijack', 'prompt_injection'),
+        matchedStrings: ['You are now l'],
+      },
+    ];
+    const prompt = buildTriagePrompt(content, matches);
+
+    expect(prompt).toContain('matched text:');
+    expect(prompt).toContain('You are now l');
+  });
+
+  it('notes when the matched span is unavailable instead of omitting it', () => {
+    const matches = [fakeMatch('test_rule', 'supply_chain')]; // empty matchedStrings
+    const prompt = buildTriagePrompt('some content', matches);
+
+    expect(prompt).toContain('matched text:');
+    expect(prompt).toContain('unavailable');
   });
 
   it('truncates very long content to prevent huge prompts', () => {
@@ -155,6 +178,26 @@ describe('buildBatches', () => {
     for (const batch of batches) {
       expect(batch.matchIndices.length).toBeGreaterThan(0);
     }
+  });
+
+  it('counts matched text toward the budget so big snippets force more batches', () => {
+    // Same matches twice: once bare, once each carrying ~1KB of matched text.
+    // The snippet-laden set must split into at least as many batches — otherwise
+    // the estimator is ignoring matched text and could overflow the prompt.
+    const bare = Array.from({ length: 50 }, (_, i) => fakeMatch(`rule_${i}`, 'supply_chain'));
+    const withSnippets = bare.map((m) => ({
+      ...m,
+      matchedStrings: Array.from({ length: 5 }, () => 'x'.repeat(200)),
+    }));
+
+    const bareBatches = buildBatches(bare, 1000, 10_000);
+    const snippetBatches = buildBatches(withSnippets, 1000, 10_000);
+
+    expect(snippetBatches.length).toBeGreaterThan(bareBatches.length);
+
+    // And nothing is ever dropped on the way.
+    const allIndices = snippetBatches.flatMap((b) => b.matchIndices).sort((a, b) => a - b);
+    expect(allIndices).toEqual(Array.from({ length: 50 }, (_, i) => i));
   });
 });
 

@@ -231,8 +231,9 @@ type ScanResult =
   | { matched: true; matches: ScanMatch[] };
 
 interface ScanMatch {
-  rule: string;              // the YARA rule name that matched
-  metadata: RuleMetadata;    // metadata from the rule's meta: block
+  rule: string;             // rule that matched
+  metadata: RuleMetadata;   // the rule's meta: block
+  matchedStrings: string[]; // text that tripped the rule (feeds triage); [] if none found
 }
 
 interface RuleMetadata {

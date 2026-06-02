@@ -42,6 +42,42 @@ function normalizeMetadata(
   return result;
 }
 
+// Cap how much matched text we keep per rule match. Triage only needs to see
+// the offending snippet(s) to judge them, so we dedupe occurrences and never
+// let a single huge span bloat the result (or the triage prompt downstream).
+const MAX_MATCHED_STRINGS = 5;
+const MAX_MATCHED_STRING_LENGTH = 200;
+
+const matchedTextDecoder = new TextDecoder();
+
+/**
+ * Pull the actual matched text out of a yara-x match.
+ *
+ * yara-x reports each pattern hit as a byte `offset` + `length` into the scanned
+ * payload, so we slice the BYTES (not the decoded JS string) and decode the
+ * slice — slicing the string by a byte offset would misalign on multi-byte
+ * characters. Results are deduped and capped.
+ */
+function extractMatchedStrings(
+  payload: Uint8Array,
+  patterns: Array<{ matches?: Array<{ offset: number; length: number }> }> | undefined,
+): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const pattern of patterns || []) {
+    for (const occurrence of pattern.matches || []) {
+      if (out.length >= MAX_MATCHED_STRINGS) return out;
+      const end = occurrence.offset + Math.min(occurrence.length, MAX_MATCHED_STRING_LENGTH);
+      const text = matchedTextDecoder.decode(payload.slice(occurrence.offset, end));
+      if (!seen.has(text)) {
+        seen.add(text);
+        out.push(text);
+      }
+    }
+  }
+  return out;
+}
+
 /**
  * Scan content against all loaded YARA rules.
  *
@@ -64,6 +100,7 @@ export async function scan(content: string): Promise<ScanResult> {
   const matches: ScanMatch[] = result.matches.map((m: any) => ({
     rule: m.identifier,
     metadata: normalizeMetadata(m.metadata || []),
+    matchedStrings: extractMatchedStrings(payload, m.patterns),
   }));
 
   return { matched: true, matches };

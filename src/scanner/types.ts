@@ -63,6 +63,12 @@ export interface ScanMatch {
   rule: string;
   /** Metadata from the rule's `meta:` block */
   metadata: RuleMetadata;
+  /**
+   * Text that tripped the rule, lifted from the scanned content so triage can
+   * judge the real trigger instead of guessing. Deduped and length-capped.
+   * Always present; an empty array means no span was recovered.
+   */
+  matchedStrings: string[];
 }
 
 /**
