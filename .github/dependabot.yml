@@ -1,0 +1,18 @@
+version: 2
+updates:
+  # npm dependencies (currently just @virustotal/yara-x + dev tooling).
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      dev-dependencies:
+        dependency-type: development
+
+  # GitHub Actions used in our workflows – keeps pinned action SHAs current.
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

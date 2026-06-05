@@ -324,6 +324,24 @@ pnpm test:watch   # run tests in watch mode
 pnpm build        # compile TypeScript and copy rule files to dist/
 ```
 
+## Releasing
+
+Releases follow the spirit of PostHog's [SDK release procedure](https://posthog.com/handbook/engineering/sdks/releases) – semi-automatic, with a human approval gate on the publish step and npm [OIDC trusted publishing](https://docs.npmjs.com/trusted-publishers) for the actual publish. Nobody runs `npm publish` by hand :)
+
+How it works:
+
+1. Land changes on `main` with [Conventional Commits](https://www.conventionalcommits.org/) messages (`fix:` → patch, `feat:` → minor, `feat!:` or a `BREAKING CHANGE:` footer → major). That's how [release-please](https://github.com/googleapis/release-please) knows what to bump.
+2. release-please keeps a **release PR** open that bumps the version in `package.json` and updates `CHANGELOG.md`. It keeps updating itself as more commits land.
+3. When you're ready to ship, review and merge that release PR. Merging it tags the release.
+4. The publish job then waits for approval on the **`Release` GitHub Environment**. The Docs & Wizard team (`@PostHog/team-docs-wizard`) gets a pending-deployment notification in-product and by email.
+5. Once approved, `@posthog/warlock` is published to npm via OIDC trusted publishing – no long-lived `NPM_TOKEN` anywhere.
+
+A few rules of thumb:
+
+- Don't bump the version in `package.json` by hand – release-please owns it.
+- Doc-only / CI / test-only changes use `docs:`, `ci:`, `test:` prefixes and don't trigger a version bump.
+- Anything user-facing should be `fix:` or `feat:` so it ends up in the release PR.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the contribution process, review model, rule-writing guide, and category-addition policy.
