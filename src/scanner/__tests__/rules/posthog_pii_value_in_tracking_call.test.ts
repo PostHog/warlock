@@ -66,6 +66,13 @@ describe(RULE, () => {
         RULE,
       );
     });
+
+    it('does NOT match an SSN value nested inside a $set object', async () => {
+      await expectRuleDidNotMatch(
+        `posthog.setPersonProperties({ $set: { ssn: '123-45-6789' } })`,
+        RULE,
+      );
+    });
   });
 
   describe('metadata', () => {

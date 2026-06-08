@@ -11,6 +11,11 @@
 //   - ssn: dashed US SSN (123-45-6789).
 //   - card: separator-grouped 16-digit PAN. YARA-X cannot run a Luhn check,
 //     so an unseparated 16-digit run is intentionally NOT matched (too noisy).
+//
+// Known limit: only catches quoted/literal values, not variables (e.g.
+// `{ email: userEmail }`). Runtime triage catches most of those at the
+// payload level; this rule is the static-analysis backstop for hardcoded
+// leaks.
 
 rule posthog_pii_value_in_tracking_call
 {
