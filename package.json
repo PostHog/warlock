@@ -1,6 +1,6 @@
 {
   "name": "@posthog/warlock",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Security scanner for PostHog's agentic flows",
   "license": "MIT",
   "repository": {
