@@ -70,12 +70,19 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # OIDC trusted publishing landed in npm 11.5.1 (Sep 2025). Node 22 ships
+      # with npm 10.x, which silently falls back to token auth and fails with
+      # ENEEDAUTH. Pin a known-good newer npm here.
+      - name: Upgrade npm CLI (OIDC trusted publishing needs >= 11.5.1)
+        run: npm install -g npm@11.6.4
+
+      # Use `npm publish` (not `pnpm publish`) – pnpm's publish wrapper doesn't
+      # propagate the GitHub Actions OIDC token through to npm's trusted-
+      # publisher exchange, which also surfaces as ENEEDAUTH.
       - name: Publish to npm (OIDC trusted publishing + provenance)
-        run: pnpm publish --access public --no-git-checks
+        run: npm publish --access public --provenance
         env:
-          NPM_CONFIG_PROVENANCE: 'true'
           # Load-bearing: setup-node with `registry-url` exports a placeholder
-          # NODE_AUTH_TOKEN that pnpm/npm then sends as a bearer token, which
-          # npm rejects as malformed – returning a misleading 404 on the publish
-          # PUT. Clearing it here lets OIDC trusted publishing take over cleanly.
+          # NODE_AUTH_TOKEN that npm would otherwise send as a bearer token,
+          # blocking the OIDC flow. Clearing it lets trusted publishing kick in.
           NODE_AUTH_TOKEN: ''
