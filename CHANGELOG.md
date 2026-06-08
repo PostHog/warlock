@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.2](https://github.com/PostHog/warlock/compare/v0.2.1...v0.2.2) (2026-06-08)
+
+
+### Bug Fixes
+
+* **ci:** use npm publish + pin npm 11.6.4 for OIDC trusted publishing ([#45](https://github.com/PostHog/warlock/issues/45)) ([7563256](https://github.com/PostHog/warlock/commit/75632562c81cf8badb54671c1c2b711f0fb505fe))
+
 ## [0.2.1](https://github.com/PostHog/warlock/compare/v0.2.0...v0.2.1) (2026-06-08)
 
 
