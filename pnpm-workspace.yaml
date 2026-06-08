@@ -1,3 +1,7 @@
+packages:
+  - '.'
+# Refuse to install any dependency version published less than 7 days ago, requires pnpm >= 10.16.0.
+minimumReleaseAge: 10080
 allowBuilds:
   esbuild: true
 onlyBuiltDependencies:

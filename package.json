@@ -1,9 +1,12 @@
 {
   "name": "@posthog/warlock",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Security scanner for PostHog's agentic flows",
   "license": "MIT",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PostHog/warlock.git"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
