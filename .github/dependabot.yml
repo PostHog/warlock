@@ -6,8 +6,7 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
-    # Wait 7 days before proposing newly published versions — defence against
-    # rapidly-deployed malicious package versions (post-Shai-Hulud tightening).
+    # Wait 7 days before proposing newly published versions 
     cooldown:
       default-days: 7
     groups:

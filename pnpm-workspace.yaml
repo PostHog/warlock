@@ -1,8 +1,6 @@
 packages:
   - '.'
-# Refuse to install any dependency version published less than 7 days ago.
-# Defence against rapidly-deployed malicious package versions (post-Shai-Hulud
-# tightening). 10080 minutes = 7 days. Requires pnpm >= 10.16.0.
+# Refuse to install any dependency version published less than 7 days ago, requires pnpm >= 10.16.0.
 minimumReleaseAge: 10080
 allowBuilds:
   esbuild: true
