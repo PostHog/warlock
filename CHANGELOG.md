@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/PostHog/warlock/compare/v0.2.0...v0.2.1) (2026-06-08)
+
+
+### Bug Fixes
+
+* **ci:** clear NODE_AUTH_TOKEN placeholder for OIDC trusted pub ([#43](https://github.com/PostHog/warlock/issues/43)) ([fcb8b6f](https://github.com/PostHog/warlock/commit/fcb8b6fdf2cede833d44d6f4833682ce8e6b29aa))
+
 ## [0.2.0](https://github.com/PostHog/warlock/compare/v0.1.0...v0.2.0) (2026-06-08)
 
 
