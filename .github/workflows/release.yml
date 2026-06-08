@@ -74,3 +74,8 @@ jobs:
         run: pnpm publish --access public --no-git-checks
         env:
           NPM_CONFIG_PROVENANCE: 'true'
+          # Load-bearing: setup-node with `registry-url` exports a placeholder
+          # NODE_AUTH_TOKEN that pnpm/npm then sends as a bearer token, which
+          # npm rejects as malformed – returning a misleading 404 on the publish
+          # PUT. Clearing it here lets OIDC trusted publishing take over cleanly.
+          NODE_AUTH_TOKEN: ''
