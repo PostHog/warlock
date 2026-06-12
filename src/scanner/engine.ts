@@ -86,7 +86,12 @@ function extractMatchedStrings(
  */
 export async function scan(content: string): Promise<ScanResult> {
   if (!rulesPromise) {
-    rulesPromise = loadRules();
+    // Cache the compile work, but if it fails, clear the cache so the next
+    // scan() retries instead of replaying a permanently-rejected promise.
+    rulesPromise = loadRules().catch((err) => {
+      rulesPromise = null;
+      throw err;
+    });
   }
   const rules = await rulesPromise;
 
