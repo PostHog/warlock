@@ -13,7 +13,7 @@ rule posthog_pii_in_capture_call
 {
     meta:
         description = "Personally identifiable information (email, phone, SSN, address, or similar) passed to a PostHog tracking call."
-        remediation = "Remove PII from event properties. Use posthog.identify() or person properties instead – https://posthog.com/docs/product-analytics/person-properties"
+        remediation = "Move PII out of event properties – use posthog.identify(), setPersonProperties(), or $set / $set_once person properties: https://posthog.com/docs/product-analytics/person-properties"
         severity = "high"
         category = "posthog_pii"
         action = "remediate"

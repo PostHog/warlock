@@ -209,6 +209,18 @@ describe('posthog_pii_in_capture_call', () => {
       expect(result.matched).toBe(false);
     });
 
+    it('does NOT match PII inside $set_once property object', async () => {
+      const result = await scan(
+        `posthog.capture('user_signed_up', { $set_once: { email: user.email, first_name: user.firstName } });`,
+      );
+      expect(result.matched).toBe(false);
+    });
+
+    it('does NOT match PII passed to setPersonProperties()', async () => {
+      const result = await scan(`posthog.setPersonProperties({ email: user.email });`);
+      expect(result.matched).toBe(false);
+    });
+
     it('does NOT match capture() with no PII', async () => {
       const result = await scan(`posthog.capture('pageview');`);
       expect(result.matched).toBe(false);
