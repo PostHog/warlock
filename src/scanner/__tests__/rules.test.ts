@@ -164,6 +164,13 @@ describe('posthog_pii_in_capture_call', () => {
       const result = await scan(`posthog.capture('event', { 'email': user.email })`);
       expect(result.matched).toBe(true);
     });
+
+    it('matches PII in a capture() that follows an unrelated propless capture()', async () => {
+      const result = await scan(
+        `posthog.capture('pageview')\nposthog.capture('signup', { email: user.email })`,
+      );
+      expect(result.matched).toBe(true);
+    });
   });
 
   describe('negative cases – should NOT match', () => {
@@ -202,8 +209,41 @@ describe('posthog_pii_in_capture_call', () => {
       expect(result.matched).toBe(false);
     });
 
+    it('does NOT match PII inside $set_once property object', async () => {
+      const result = await scan(
+        `posthog.capture('user_signed_up', { $set_once: { email: user.email, first_name: user.firstName } });`,
+      );
+      expect(result.matched).toBe(false);
+    });
+
+    it('does NOT match PII passed to setPersonProperties()', async () => {
+      const result = await scan(`posthog.setPersonProperties({ email: user.email });`);
+      expect(result.matched).toBe(false);
+    });
+
     it('does NOT match capture() with no PII', async () => {
       const result = await scan(`posthog.capture('pageview');`);
+      expect(result.matched).toBe(false);
+    });
+
+    it('does NOT bleed from a propless capture() into a following identify() with allowed fields', async () => {
+      const result = await scan(
+        `posthog.capture('signup_completed')\nposthog.identify(userId, { email: user.email })`,
+      );
+      expect(result.matched).toBe(false);
+    });
+
+    it('does NOT bleed from a propless identify() into a later object literal', async () => {
+      const result = await scan(
+        `posthog.identify(userId)\nconst profile = { ssn: user.ssn }`,
+      );
+      expect(result.matched).toBe(false);
+    });
+
+    it('does NOT bleed across statements separated by other code', async () => {
+      const result = await scan(
+        `posthog.capture('page_view');\nrenderNav();\nposthog.identify('u1', { phone: p })`,
+      );
       expect(result.matched).toBe(false);
     });
   });
