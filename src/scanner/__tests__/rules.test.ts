@@ -206,6 +206,32 @@ describe('posthog_pii_in_capture_call', () => {
       const result = await scan(`posthog.capture('pageview');`);
       expect(result.matched).toBe(false);
     });
+
+    // Field false positives reported in wizard remarks (2026-07-07 triage).
+    // Each fixture is a pattern agents legitimately write; locking them in
+    // keeps a future rule tightening from re-introducing the noise.
+
+    it('does NOT match a PII word in the event NAME', async () => {
+      const result = await scan(`posthog.capture('email_verification_sent', { template: 'welcome' });`);
+      expect(result.matched).toBe(false);
+    });
+
+    it('does NOT match a minimal-payload auth event', async () => {
+      const result = await scan(`posthog.capture('login_success', { provider: 'google', method: 'oauth' });`);
+      expect(result.matched).toBe(false);
+    });
+
+    it('does NOT match a benign `location` (page section) property', async () => {
+      const result = await scan(`posthog.capture('cta_clicked', { location: 'hero', variant: 'primary' });`);
+      expect(result.matched).toBe(false);
+    });
+
+    it('does NOT match replacement code that removes PII from a capture call', async () => {
+      // The diff-direction case: an edit replacing a violating call with a
+      // clean one must pass when the scanner sees only the new content.
+      const result = await scan(`posthog.capture('signup', { plan: user.plan, source: 'organic' });`);
+      expect(result.matched).toBe(false);
+    });
   });
 
   describe('metadata', () => {
