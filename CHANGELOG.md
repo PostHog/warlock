@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.3](https://github.com/PostHog/warlock/compare/v0.2.2...v0.2.3) (2026-07-07)
+
+
+### Bug Fixes
+
+* stop PII rule matches bleeding across call boundaries ([#59](https://github.com/PostHog/warlock/issues/59)) ([31f5834](https://github.com/PostHog/warlock/commit/31f5834b90ea707a7dc01ad978e36b0246f130f6))
+
 ## [0.2.2](https://github.com/PostHog/warlock/compare/v0.2.1...v0.2.2) (2026-06-08)
 
 
