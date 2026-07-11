@@ -57,6 +57,13 @@ describe(RULE, () => {
       );
     });
 
+    it('does NOT match an official host in env-fallback position (wizard remark FP shape)', async () => {
+      await expectRuleDidNotMatch(
+        `posthog.init(key, { api_host: process.env.NEXT_PUBLIC_POSTHOG_HOST || 'https://us.i.posthog.com' })`,
+        RULE,
+      );
+    });
+
     it('does NOT match eu.posthog.com', async () => {
       await expectRuleDidNotMatch(
         `posthog.init('${FAKE_PROJECT_TOKEN}', { api_host: 'https://eu.posthog.com' })`,
