@@ -47,6 +47,14 @@ rule prompt_injection_posthog_feature_attack
         // qualifier): "posthog surveys should be disabled"
         $attack_passive_generic = /\bposthog\s+(product\s+analytics|web\s+analytics|error\s+(tracking|monitoring)|surveys?|support|data\s+(pipelines?|warehouse)|llm\s+analytics|revenue\s+analytics|customer\s+analytics|workflows?|logs?|endpoints?|identify|event\s+(tracking|capture))\s+(should\s+be|must\s+be|has\s+to\s+be|have\s+to\s+be|needs\s+to\s+be|need\s+to\s+be|is\s+to\s+be|are\s+to\s+be)\s+(disabled|removed|skipped|deactivated|turned\s+off|killed|broken|bypassed)\b/i
 
+        // Benign config documentation, NOT an injection: a permissive modal
+        // ("you can disable autocapture") paired with a config mechanism
+        // ("by setting `autocapture` to false", "for specific elements").
+        // This is how our own docs describe opt-out config; it must not read
+        // as an instruction to the agent. Tightly shaped so an injection can't
+        // trivially adopt it as an evasion.
+        $benign_config_doc = /\b(you\s+|users?\s+can\s+|developers?\s+can\s+)?(can|could|may|might)\s+(disable|turn\s+off|deactivate)\s+(the\s+)?(session\s+(replay|replays|recording|recordings)|autocapture|auto-capture|automatic\s+event\s+capture|heatmaps?|feature\s+flags?|experiments?|A\/B\s+tests?|product\s+tours?|group\s+analytics|person\s+profiles?|cohorts?|toolbar)\b[^.\n]{0,60}(by\s+(setting|configuring|passing|adding)|for\s+specific|to\s+`?false`?|:\s*false|=\s*false)/i
+
     condition:
-        any of them
+        any of ($attack_*) and not $benign_config_doc
 }
