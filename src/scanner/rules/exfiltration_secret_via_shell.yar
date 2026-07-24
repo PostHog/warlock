@@ -34,11 +34,16 @@ rule exfiltration_secret_via_shell
         // Language one-liner reading a secret via os.environ / process.env / ENV[]
         $lang_oneliner_env_access = /\b(python3?|node|perl|ruby)\s+-[ce]\b[^\n]{0,400}(os\.environ|process\.env|ENV\[)[^\n]{0,40}(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|API|PRIVATE|ACCESS|PASSPHRASE|JWT|SESSION|COOKIE)/i
 
-        // curl uploading a file out (--upload-file / -T / -F file=@...)
-        $curl_file_upload = /\bcurl\s[^\n]{0,200}(--upload-file|-T\s|-F\s+["']?[A-Za-z_]+=@)/i
+        // curl uploading a file out (--upload-file / -T / -F file=@... / -d @file / --data @file)
+        $curl_file_upload = /\bcurl\s[^\n]{0,200}(--upload-file|-T\s|-F\s+["']?[A-Za-z_]+=@|(-d|--data|--data-binary|--data-raw|--data-urlencode)\s+@)/i
 
         // Secret-shaped env var piped into a network tool
         $pipe_env_secret_to_net = /\$\{?[A-Z_]*(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|API|PRIVATE|ACCESS|PASSPHRASE|JWT|SESSION|COOKIE)[^\n]{0,200}\|\s*(curl|wget|nc\b|netcat\b|http\s|httpie|socat)/i
+
+        // `env` command dumping all env vars, filtered for secrets and
+        // redirected to a file or piped to a network tool. The two-step
+        // pattern (dump → file → curl -d @file) dodges command-substitution rules.
+        $env_dump_secrets = /\benv\b[^\n]{0,60}\|\s*grep\s[^\n]{0,60}(KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL|AUTH|API|PRIVATE|ACCESS|PASSPHRASE|JWT|SESSION|COOKIE|posthog|phc_|phx_)/i
 
         // Cred file (.env, ~/.aws, ~/.ssh, etc.) read and piped to network.
         // .env matches dotfile prefix + basename suffix.
