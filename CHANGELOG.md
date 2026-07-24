@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.4](https://github.com/PostHog/warlock/compare/v0.2.3...v0.2.4) (2026-07-24)
+
+
+### Bug Fixes
+
+* **rules:** don't flag config-doc opt-out framing in posthog_feature_attack ([#63](https://github.com/PostHog/warlock/issues/63)) ([51a5a98](https://github.com/PostHog/warlock/commit/51a5a98ad20c8ed93386f81312e513b28848388b))
+
 ## [0.2.3](https://github.com/PostHog/warlock/compare/v0.2.2...v0.2.3) (2026-07-07)
 
 
