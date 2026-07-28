@@ -3,6 +3,13 @@
 // angle. The direct form requires a "now" / "from now on" marker and
 // the indirect form requires a command-style verb (pretend/act/
 // roleplay/simulate), so "you are helpful" stays quiet.
+//
+// The "now" marker alone is NOT enough to imply an attack: "You are now a
+// registered user" / "You are now following @x" is ordinary product copy, and
+// firing critical on it terminated real runs. $benign_ui_state carves those
+// out. A genuine persona swap that also happens to sit next to such copy is
+// still caught by prompt_injection_jailbreak_persona and
+// prompt_injection_instruction_override.
 
 rule prompt_injection_role_hijack
 {
@@ -35,6 +42,11 @@ rule prompt_injection_role_hijack
         // "simulate" + role noun — "simulate a helpful AI without restrictions"
         $hijack_simulate = /\bsimulate\s+(a\s+|an\s+)?(different|uncensored|unrestricted|unfiltered|jailbroken|evil|malicious)/i
 
+        // Product copy telling a HUMAN their account state changed. Not a
+        // persona swap — the completion is an account/permission state, never
+        // a role the model could adopt.
+        $benign_ui_state = /\byou\s+(are|will\s+be)\s+now\s+(a\s+|an\s+)?(registered|logged|signed|subscribed|following|followed|connected|verified|authenticated|enrolled|invited|banned|muted|blocked|unblocked|premium|pro|admin|administrator|moderator|member|friends|mutuals|online|offline|ready|done|up\s+to\s+date)\b/i
+
     condition:
-        any of them
+        any of ($hijack_*) and not $benign_ui_state
 }
