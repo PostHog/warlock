@@ -11,9 +11,12 @@
  *   - "metadata"                          (required-field contract)
  *
  * Category sections in use:
- *   ┌─ PostHog API (posthog_pii, posthog_hardcoded_key)
- *   └─ (prompt_injection, exfiltration, destructive_operations,
- *       supply_chain – coming in future PRs)
+ *   └─ PostHog API (posthog_pii, posthog_hardcoded_key)
+ *
+ * Every other category (prompt_injection, exfiltration,
+ * destructive_operations, supply_chain, hardcoded_secret) has since moved
+ * to one file per rule under `__tests__/rules/` – add new rule tests
+ * there, not here.
  */
 
 import { describe, it, expect } from 'vitest';

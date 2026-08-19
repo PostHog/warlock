@@ -18,7 +18,7 @@ the Warlock is the content-scanning engine behind PostHog's agentic tooling. You
 
 **Who this is for:**
 
-- PostHog's [wizard](https://github.com/PostHog/wizard) – the Warlock replaces the hand-rolled JS-regex scanner at `src/lib/yara-scanner.ts` with real YARA rules.
+- PostHog's [wizard](https://github.com/PostHog/wizard) – the Warlock replaced the wizard's hand-rolled JS-regex scanner with real YARA rules ([wizard#804](https://github.com/PostHog/wizard/pull/804)); the wizard wires it into its agent hooks via `src/lib/yara-hooks.ts`.
 - The context mill and other PostHog context infrastructure.
 - Future PostHog-internal consumers that need to scan untrusted content flowing through AI agents.
 
@@ -95,13 +95,13 @@ When an implementation choice forces a trade-off between "ugly code in the Warlo
 - **Why:** the Warlock has one maintainer. Consumers have many call-sites. Paying the complexity tax once is way cheaper than paying it over and over.
 - **Examples:** The CommonJS / ESM bridge (below) and metadata normalization (below).
 
-### CommonJS package – ESM-only yara-x bridged via dynamic `import()`
+### ESM package – yara-x loaded lazily via dynamic `import()`
 
-the Warlock ships as a CommonJS package.
+the Warlock ships as an ESM package (`"type": "module"`; it migrated from CommonJS in v0.2.x).
 
-- **Why:** CJS maximizes compatibility with consumers that haven't migrated to ESM. CJS can be imported from both CJS and ESM contexts – the reverse is awkward. Keeping the Warlock CJS concentrates the bridging code in a single file (`src/scanner/engine.ts`), so consumers don't have to deal with it themselves. We can add a dual CJS/ESM build later if it's needed.
-- **Cost:** yara-x is ESM-only, so the Warlock uses a dynamic `await import('@virustotal/yara-x')` inside `loadRules()`. This is why `scan()` is async – the dynamic import returns a Promise.
-- **When to revisit:** If future consumers are ESM-native, or Node itself deprecates CJS, this trade-off might flip.
+- **Why lazy:** yara-x's WASM engine is expensive to initialize and its rules are compiled on first use. Loading it with a dynamic `await import('@virustotal/yara-x')` inside `loadRules()` keeps `import '@posthog/warlock'` itself cheap and synchronous – consumers pay the engine cost on the first `scan()`, not at import time. This is why `scan()` is async.
+- **Cost:** ESM-only means CommonJS consumers can't `require()` the Warlock – they need a dynamic `import()` of their own. Both current consumers (the wizard, the context mill) are fine with that.
+- **When to revisit:** If a CJS-only consumer appears, a dual build could be added.
 
 ### Why `yara-x` over classic YARA
 
@@ -250,7 +250,8 @@ type Category =
   | 'destructive_operations'
   | 'supply_chain'
   | 'posthog_pii'
-  | 'posthog_hardcoded_key';
+  | 'posthog_hardcoded_key'
+  | 'hardcoded_secret';
 
 type Severity = 'critical' | 'high' | 'medium' | 'low';
 

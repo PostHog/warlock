@@ -11,9 +11,8 @@ The Warlock is a security-critical YARA-based content scanner for PostHog's agen
 ## When to use this skill
 
 - Editing any file under `/warlock`
-- Porting rules into the Warlock from wizard's legacy `src/lib/yara-scanner.ts`
 - Proposing or reviewing a new rule, category, or severity
-- Modifying the Warlock's public API, `scan()` signature, or integration-facing docs ([INTEGRATING.md](../../../INTEGRATING.md))
+- Modifying the Warlock's public API, `scan()` signature, or the integration-facing sections of [README.md](../../../README.md)
 - Reviewing a Warlock PR
 
 ## Non-negotiables
@@ -67,7 +66,6 @@ Every PR description must state (a) the problem this change addresses in one to 
 
 ## Further reading
 
-- [README.md](../../../README.md) – charter, audience, design decisions, API stability, public API reference
+- [README.md](../../../README.md) – charter, audience, design decisions, API stability, public API reference; update the API reference when changing the public API
 - [CONTRIBUTING.md](../../../CONTRIBUTING.md) – contribution process, rule-writing guide, category-addition policy
-- [INTEGRATING.md](../../../INTEGRATING.md) – guide for engineers integrating the Warlock into a consumer application; update this when changing the public API
 - [.github/pull_request_template.md](../../../.github/pull_request_template.md) – PR template used for every Warlock PR
