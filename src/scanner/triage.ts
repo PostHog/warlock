@@ -68,7 +68,7 @@ These domains are TRUSTED: *.posthog.com, *.posthog-hosted.com, localhost, 127.0
 ANYTHING ELSE should be treated with suspicion, especially if it receives collected system info or secrets. Domains that contain "posthog" but are not *.posthog.com are ESPECIALLY suspicious (typosquatting).
 
 --- CONTENT START ---
-${content.slice(0, 30000)}
+${promptContent(content, matches).text}
 --- CONTENT END ---
 
 --- MATCHES ---
@@ -91,6 +91,31 @@ export function parseTriageResponse(
   raw: string,
   matchCount: number,
 ): Array<{ verdict: 'true_positive' | 'false_positive'; reason: string }> {
+  const parsed = parseVerdicts(raw);
+  if (parsed === 'unparseable') {
+    return Array.from({ length: matchCount }, () => ({
+      verdict: 'true_positive' as const,
+      reason: 'LLM response could not be parsed — defaulting to true positive.',
+    }));
+  }
+  if (parsed === 'not_an_array') {
+    return Array.from({ length: matchCount }, () => ({
+      verdict: 'true_positive' as const,
+      reason: 'LLM response was not an array — defaulting to true positive.',
+    }));
+  }
+
+  return Array.from({ length: matchCount }, (_, i) =>
+    parsed.get(i) ?? {
+      verdict: 'true_positive' as const,
+      reason: 'No triage verdict for this match — defaulting to true positive.',
+    },
+  );
+}
+
+type Verdict = { verdict: 'true_positive' | 'false_positive'; reason: string };
+
+function parseVerdicts(raw: string): Map<number, Verdict> | 'unparseable' | 'not_an_array' {
   let cleaned = raw.trim();
   cleaned = cleaned.replace(/^```(?:json)?\s*\n?/, '').replace(/\n?```\s*$/, '');
   cleaned = cleaned.trim();
@@ -110,21 +135,15 @@ export function parseTriageResponse(
     }
 
     if (!parsed) {
-      return Array.from({ length: matchCount }, () => ({
-        verdict: 'true_positive' as const,
-        reason: 'LLM response could not be parsed — defaulting to true positive.',
-      }));
+      return 'unparseable';
     }
   }
 
   if (!Array.isArray(parsed)) {
-    return Array.from({ length: matchCount }, () => ({
-      verdict: 'true_positive' as const,
-      reason: 'LLM response was not an array — defaulting to true positive.',
-    }));
+    return 'not_an_array';
   }
 
-  const verdictMap = new Map<number, { verdict: 'true_positive' | 'false_positive'; reason: string }>();
+  const verdictMap = new Map<number, Verdict>();
   for (const entry of parsed) {
     if (
       typeof entry === 'object' &&
@@ -136,18 +155,104 @@ export function parseTriageResponse(
       verdictMap.set(entry.index, { verdict: entry.verdict, reason: entry.reason });
     }
   }
-
-  return Array.from({ length: matchCount }, (_, i) =>
-    verdictMap.get(i) ?? {
-      verdict: 'true_positive' as const,
-      reason: 'No triage verdict for this match — defaulting to true positive.',
-    },
-  );
+  return verdictMap;
 }
 
 const DEFAULT_MAX_PROMPT_CHARS = 80_000;
 const PROMPT_OVERHEAD_CHARS = 5_000;
 const MAX_CONTENT_CHARS = 30_000;
+const EXCERPT_RADIUS_CHARS = 1_500;
+const EXCERPT_SEPARATOR = '\n[... content omitted ...]\n';
+const MAX_TRIAGE_ATTEMPTS = 3;
+
+type PromptContent = { text: string; unshownMatchReasons: Map<number, string> };
+
+/**
+ * The content the model sees: all of it when it fits, otherwise the windows
+ * around every occurrence of each match's text. A match whose text cannot be
+ * located, or whose windows do not all fit, is reported as unshown so it is
+ * never judged blind.
+ */
+function promptContent(content: string, matches: ScanMatch[]): PromptContent {
+  const unshownMatchReasons = new Map<number, string>();
+  if (content.length <= MAX_CONTENT_CHARS) {
+    return { text: content, unshownMatchReasons };
+  }
+
+  let shownWindows: Array<[number, number]> = [];
+  matches.forEach((match, matchIndex) => {
+    const matchWindows = windowsAroundMatchedStrings(content, match.matchedStrings ?? []);
+    if (matchWindows === 'not_found') {
+      unshownMatchReasons.set(
+        matchIndex,
+        'Matched text could not be located in the content — defaulting to true positive.',
+      );
+      return;
+    }
+    const candidateWindows = mergeWindows([...shownWindows, ...matchWindows]);
+    if (renderedLength(candidateWindows) > MAX_CONTENT_CHARS) {
+      unshownMatchReasons.set(
+        matchIndex,
+        'Not every occurrence of the matched text fits in the triage prompt — defaulting to true positive.',
+      );
+      return;
+    }
+    shownWindows = candidateWindows;
+  });
+
+  if (shownWindows.length === 0) {
+    return { text: content.slice(0, MAX_CONTENT_CHARS), unshownMatchReasons };
+  }
+  return {
+    text: shownWindows.map(([start, end]) => content.slice(start, end)).join(EXCERPT_SEPARATOR),
+    unshownMatchReasons,
+  };
+}
+
+function windowsAroundMatchedStrings(
+  content: string,
+  matchedStrings: string[],
+): Array<[number, number]> | 'not_found' {
+  const windows: Array<[number, number]> = [];
+  for (const matchedString of matchedStrings) {
+    // engine.ts cuts each span at a byte limit, which can split a multibyte char into U+FFFD.
+    const searchText = matchedString.replace(/^\uFFFD+|\uFFFD+$/g, '');
+    const firstStart = searchText.length > 0 ? content.indexOf(searchText) : -1;
+    if (firstStart === -1) {
+      return 'not_found';
+    }
+    for (
+      let start = firstStart;
+      start !== -1;
+      start = content.indexOf(searchText, start + searchText.length)
+    ) {
+      windows.push([
+        Math.max(0, start - EXCERPT_RADIUS_CHARS),
+        Math.min(content.length, start + searchText.length + EXCERPT_RADIUS_CHARS),
+      ]);
+    }
+  }
+  return windows;
+}
+
+function mergeWindows(windows: Array<[number, number]>): Array<[number, number]> {
+  const sortedWindows = [...windows].sort((a, b) => a[0] - b[0]);
+  const mergedWindows: Array<[number, number]> = [];
+  for (const window of sortedWindows) {
+    const previous = mergedWindows[mergedWindows.length - 1];
+    if (previous && window[0] <= previous[1]) {
+      previous[1] = Math.max(previous[1], window[1]);
+      continue;
+    }
+    mergedWindows.push([...window]);
+  }
+  return mergedWindows;
+}
+
+function renderedLength(windows: Array<[number, number]>): number {
+  const windowChars = windows.reduce((sum, [start, end]) => sum + end - start, 0);
+  return windowChars + Math.max(0, windows.length - 1) * EXCERPT_SEPARATOR.length;
+}
 
 function estimateMatchChars(m: ScanMatch): number {
   // The "    matched text: ..." line buildTriagePrompt adds. Mirror how it's
@@ -244,31 +349,12 @@ export async function triageMatches(
 
   for (let b = 0; b < batches.length; b++) {
     const batch = batches[b];
-    const batchMatches = batch.matchIndices.map((i) => matches[i]);
-
-    const prompt = buildTriagePrompt(content, batchMatches);
-
-    let raw: string;
-    try {
-      raw = await provider(prompt);
-      if (process.env.WARLOCK_DEBUG) {
-        console.error(`[warlock triage] batch ${b + 1}/${batches.length}: response length ${raw.length}`);
-      }
-    } catch (err) {
-      if (process.env.WARLOCK_DEBUG) {
-        console.error(`[warlock triage] batch ${b + 1}/${batches.length}: provider error:`, err);
-      }
-      for (const idx of batch.matchIndices) {
-        verdicts[idx] = {
-          verdict: 'true_positive' as const,
-          reason: 'LLM provider call failed — defaulting to true positive.',
-        };
-      }
-      continue;
-    }
-
-    const batchVerdicts = parseTriageResponse(raw, batchMatches.length);
-
+    const batchVerdicts = await triageBatch(
+      content,
+      batch.matchIndices.map((i) => matches[i]),
+      provider,
+      `batch ${b + 1}/${batches.length}`,
+    );
     for (let j = 0; j < batch.matchIndices.length; j++) {
       verdicts[batch.matchIndices[j]] = batchVerdicts[j];
     }
@@ -278,4 +364,69 @@ export async function triageMatches(
     ...m,
     triage: verdicts[i],
   }));
+}
+
+/**
+ * Triage one batch, asking again about any match the model left without a
+ * verdict, so a skipped index costs a retry rather than a false block.
+ */
+async function triageBatch(
+  content: string,
+  batchMatches: ScanMatch[],
+  provider: LLMProvider,
+  batchLabel: string,
+): Promise<Verdict[]> {
+  const verdicts = new Map<number, Verdict>();
+  let pendingIndices = batchMatches.map((_, i) => i);
+
+  for (let attempt = 1; attempt <= MAX_TRIAGE_ATTEMPTS && pendingIndices.length > 0; attempt++) {
+    const { unshownMatchReasons } = promptContent(
+      content,
+      pendingIndices.map((i) => batchMatches[i]),
+    );
+    unshownMatchReasons.forEach((reason, promptIndex) => {
+      verdicts.set(pendingIndices[promptIndex], { verdict: 'true_positive', reason });
+    });
+    pendingIndices = pendingIndices.filter((i) => !verdicts.has(i));
+    if (pendingIndices.length === 0) {
+      break;
+    }
+    const pendingMatches = pendingIndices.map((i) => batchMatches[i]);
+
+    let raw: string;
+    try {
+      raw = await provider(buildTriagePrompt(content, pendingMatches));
+    } catch (err) {
+      if (process.env.WARLOCK_DEBUG) {
+        console.error(`[warlock triage] ${batchLabel}: provider error:`, err);
+      }
+      return batchMatches.map((_, i) =>
+        verdicts.get(i) ?? {
+          verdict: 'true_positive' as const,
+          reason: 'LLM provider call failed — defaulting to true positive.',
+        },
+      );
+    }
+
+    const parsed = parseVerdicts(raw);
+    const parsedVerdicts = parsed instanceof Map ? parsed : new Map<number, Verdict>();
+    pendingIndices.forEach((batchIndex, promptIndex) => {
+      const verdict = parsedVerdicts.get(promptIndex);
+      if (verdict) verdicts.set(batchIndex, verdict);
+    });
+    pendingIndices = pendingIndices.filter((i) => !verdicts.has(i));
+
+    if (process.env.WARLOCK_DEBUG) {
+      console.error(
+        `[warlock triage] ${batchLabel} attempt ${attempt}: response length ${raw.length}, ${pendingIndices.length} without a verdict`,
+      );
+    }
+  }
+
+  return batchMatches.map((_, i) =>
+    verdicts.get(i) ?? {
+      verdict: 'true_positive' as const,
+      reason: `No triage verdict for this match after ${MAX_TRIAGE_ATTEMPTS} attempts — defaulting to true positive.`,
+    },
+  );
 }
