@@ -1,6 +1,5 @@
 export { scan } from './scanner/engine.js';
-export { triageMatches } from './scanner/triage.js';
-export { triageMatchesByDecision, TRIAGE_TOO_MUCH_TO_REVIEW } from './scanner/decision-triage.js';
+export { triageMatches, TRIAGE_TOO_MUCH_TO_REVIEW } from './scanner/triage.js';
 export { CATEGORIES } from './scanner/types.js';
 export type {
   Category,
@@ -10,10 +9,8 @@ export type {
   ScanResult,
   TriageMatch,
   TriageVerdict,
-  LLMProvider,
-  TriageOptions,
-  DecisionProvider,
-  DecisionRequest,
-  DecisionQuestion,
-  DecisionResponse,
+  TriageClassifier,
+  TriageClassifierContext,
+  TriageClassifierResult,
+  TriageQuestion,
 } from './scanner/types.js';

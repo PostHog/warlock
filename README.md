@@ -78,9 +78,9 @@ the Warlock returns *all* matches from *all* rules. If a consumer only cares abo
 
 Every rule has a `scan_context` field (`command`, `input`, or `output`) indicating what kind of content it targets. Consumers filter matches by this to fit their own lifecycle — e.g., a pre-execution hook filters for `command`, a file-read hook filters for `input`. Keeps `scan()` simple while giving consumers a clean filtering primitive.
 
-### LLM triage as an opt-in utility
+### Triage as an opt-in utility
 
-`triageMatches()` is separate from `scan()`. Consumers opt in by providing their own LLM callback — the Warlock owns the prompt and parsing, has no LLM SDK dependencies. All failures default to `true_positive` (never silently suppresses a finding).
+`triageMatches()` is separate from `scan()`. Consumers opt in by providing a classifier callback, such as pi-ai's `classify()` on the AI gateway's decision model. The Warlock owns the questions and how the answers are scored, and has no LLM SDK dependencies. All failures default to `true_positive` (never silently suppresses a finding).
 
 ### `action` field as a recommendation, not a command
 
@@ -192,7 +192,7 @@ If a proposed rename can be talked into one of these buckets, the answer is no. 
 
 ## Public API reference
 
-the Warlock exports a scanning function, an optional LLM triage utility, and a set of types.
+the Warlock exports a scanning function, an optional triage utility, and a set of types.
 
 ### `scan(content: string): Promise<ScanResult>`
 
@@ -209,27 +209,27 @@ if (result.matched) {
 }
 ```
 
-### `triageMatches(content, matches, provider): Promise<TriageMatch[]>`
+### `triageMatches(content, matches, classify): Promise<TriageMatch[]>`
 
-Optional. Annotates each match with a `true_positive` or `false_positive` verdict using a consumer-provided LLM. All failures default to `true_positive`.
+Optional. Annotates each match with a `true_positive` or `false_positive` verdict using a consumer-provided classifier. All failures default to `true_positive`.
 
 ```typescript
+import { classify } from '@earendil-works/pi-ai/api/typesafe-system-one';
 import { scan, triageMatches } from '@posthog/warlock';
+
+// The AI gateway's decision model, reached through pi-ai's System One API.
+const model = { id: 'openai/gpt-6-luna', api: 'typesafe-system-one', baseUrl: 'https://ai-gateway.us.posthog.com/v1', type: 'classifier', /* … */ };
 
 const result = await scan(someContent);
 if (result.matched) {
-  const triaged = await triageMatches(someContent, result.matches, myLLMProvider);
+  const triaged = await triageMatches(someContent, result.matches, (context) => classify(model, context, { apiKey }));
   const threats = triaged.filter(m => m.triage.verdict === 'true_positive');
 }
 ```
 
-### `triageMatchesByDecision(content, matches, decide): Promise<TriageMatch[]>`
-
-Optional. Same input and output as `triageMatches()`, but judged by the AI gateway's decision model through `POST /v1/systemone`. Warlock builds each request and the consumer's `decide` callback sends it, adding the model id (`openai/gpt-6-luna`).
-
 - **Per hit.** The whole content is the state. Every distinct hit gets two fixed questions, "is it a real threat?" and "is it benign?". The hit's score is the mean of the first answer and one minus the second, and a match is `true_positive` when any of its hits scores 0.5 or more.
 - **Requests.** 16 hits (32 questions) per request, with up to 4 requests in flight.
-- **Fail-safe.** A refused or missing answer, a failed call, or text that isn't in the content makes the match `true_positive`.
+- **Fail-safe.** A refused or missing answer, a failed call (thrown, or a result whose `stopReason` isn't `stop`), or text that isn't in the content makes the match `true_positive`.
 - **Too much to triage.** More than 256 distinct hits, or a request over the gateway's 1 MiB limit, make every match `true_positive` with the reason `TRIAGE_TOO_MUCH_TO_REVIEW`, without a call.
 
 ### Types
@@ -263,19 +263,16 @@ type Category =
 
 type Severity = 'critical' | 'high' | 'medium' | 'low';
 
-// LLM triage types
-type LLMProvider = (prompt: string) => Promise<string>;
+// Triage types (the classifier shapes match pi-ai's)
+type TriageClassifier = (context: TriageClassifierContext) => Promise<TriageClassifierResult>;
+interface TriageClassifierContext { state: { content: string }; questions: Record<string, TriageQuestion> }
+interface TriageQuestion { type: 'bool'; instructions: string; criteria: { true: string; false: string } }
+interface TriageClassifierResult { answers: Record<string, { type: string; probability?: number }>; stopReason?: string; errorMessage?: string }
 type TriageVerdict = 'true_positive' | 'false_positive';
 
 interface TriageMatch extends ScanMatch {
   triage: { verdict: TriageVerdict; reason: string };
 }
-
-// Decision triage types
-type DecisionProvider = (request: DecisionRequest) => Promise<DecisionResponse>;
-interface DecisionRequest { state: string; questions: Record<string, DecisionQuestion> }
-interface DecisionQuestion { type: 'noul'; instructions: string; criteria: { true: string; false: string } }
-interface DecisionResponse { answers: Record<string, { type: string; noul?: number }> }
 ```
 
 `CATEGORIES` is also exported as a runtime value (the `as const` array) for consumers that need to iterate over all categories.
@@ -318,14 +315,14 @@ if (result.matched) {
 }
 ```
 
-With LLM triage (consumer provides their own LLM):
+With triage (consumer provides their own classifier):
 
 ```typescript
 import { scan, triageMatches } from '@posthog/warlock';
 
 const result = await scan(someContent);
 if (result.matched) {
-  const triaged = await triageMatches(someContent, result.matches, myLLMProvider);
+  const triaged = await triageMatches(someContent, result.matches, myClassifier);
   const realThreats = triaged.filter(m => m.triage.verdict === 'true_positive');
 }
 ```

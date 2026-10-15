@@ -101,41 +101,34 @@ export interface TriageMatch extends ScanMatch {
 }
 
 /**
- * Callback that consumers provide to connect their own LLM.
- * Receives a prompt string, returns the LLM's text response.
+ * A yes/no question for the classifier. The answer is the probability that
+ * `criteria.true` holds. Same shape as pi-ai's `ClassifierBoolQuestion`.
  */
-export type LLMProvider = (prompt: string) => Promise<string>;
-
-/**
- * Optional configuration for triageMatches().
- */
-export interface TriageOptions {
-  maxPromptChars?: number; // default: 80000
-}
-
-/**
- * A request to the AI gateway's decision route, `POST /v1/systemone`: one
- * state and typed questions about it. The consumer adds the model and sends it.
- */
-export interface DecisionRequest {
-  state: string;
-  questions: Record<string, DecisionQuestion>;
-}
-
-/** A yes/no question. The answer is the probability that `criteria.true` holds. */
-export interface DecisionQuestion {
-  type: 'noul';
+export interface TriageQuestion {
+  type: 'bool';
   instructions: string;
   criteria: { true: string; false: string };
 }
 
-/** The gateway's decision response: one answer per question id. */
-export interface DecisionResponse {
-  answers: Record<string, { type: string; noul?: number }>;
+/** What triage asks the classifier. Same shape as pi-ai's `ClassifierContext`. */
+export interface TriageClassifierContext {
+  state: { content: string };
+  questions: Record<string, TriageQuestion>;
 }
 
 /**
- * Callback that consumers provide to reach the decision route. Receives the
- * request warlock built, returns the gateway's response, and throws on failure.
+ * The classifier's answers, one per question id. Same shape as pi-ai's
+ * `ClassifierResult`, which reports a failed call in `stopReason` and
+ * `errorMessage` rather than throwing.
  */
-export type DecisionProvider = (request: DecisionRequest) => Promise<DecisionResponse>;
+export interface TriageClassifierResult {
+  answers: Record<string, { type: string; probability?: number }>;
+  stopReason?: string;
+  errorMessage?: string;
+}
+
+/**
+ * Callback that consumers provide to reach a classifier model, such as
+ * `(context) => classify(model, context, { apiKey })` with pi-ai.
+ */
+export type TriageClassifier = (context: TriageClassifierContext) => Promise<TriageClassifierResult>;
