@@ -178,11 +178,12 @@ function promptContent(content: string, matches: ScanMatch[]): PromptContent {
   const unshownMatchReasons = new Map<number, string>();
   const windowsByMatchIndex = new Map<number, Array<[number, number]>>();
   matches.forEach((match, matchIndex) => {
-    // Ranges cover every hit, but only index into the content scan() saw.
-    // Otherwise fall back to searching for the matched strings, which the
-    // engine caps at 5 and cuts at 200 bytes.
-    const matchWindows = rangesPointIntoContent(content, match)
-      ? windowsAroundRanges(content, match.matchedRanges!)
+    // Windows go around every hit scan() reported, when its ranges point into
+    // this content. Otherwise triage searches for the matched strings, which
+    // the engine caps at 5 and cuts at 200 bytes.
+    const ranges = rangesIntoThisContent(content, match);
+    const matchWindows = ranges
+      ? windowsAroundRanges(content, ranges)
       : windowsAroundMatchedStrings(content, match.matchedStrings ?? []);
     if (matchWindows === 'not_found') {
       unshownMatchReasons.set(
@@ -220,21 +221,38 @@ function promptContent(content: string, matches: ScanMatch[]): PromptContent {
 }
 
 /**
- * True when the match's ranges index into this content. scan() lists ranges
- * and matched strings in the same hit order, so the first matched string
- * sits at the first range when the content is the one that was scanned.
+ * The match's ranges, or undefined when they don't point into this content.
+ *
+ * scan() reports ranges into the string it scanned, but a caller can pass
+ * triage a different string. Ranges and matched strings list hits in the same
+ * order, so in the scanned string the first matched string sits at the first
+ * range. If it isn't there, the ranges came from some other string.
  */
-function rangesPointIntoContent(content: string, match: ScanMatch): boolean {
-  const firstRange = match.matchedRanges?.[0];
-  const firstString = match.matchedStrings?.[0]?.replace(/�+$/, '');
-  return !!firstRange && !!firstString && content.startsWith(firstString, firstRange[0]);
+function rangesIntoThisContent(content: string, match: ScanMatch): Array<[number, number]> | undefined {
+  const ranges = match.matchedRanges;
+  const firstMatchedString = match.matchedStrings?.[0];
+  if (!ranges || ranges.length === 0 || !firstMatchedString) {
+    return undefined;
+  }
+
+  // engine.ts cuts matched strings at 200 bytes, which can leave a broken
+  // character at the end as U+FFFD. Drop it before comparing.
+  const firstMatchedText = firstMatchedString.replace(/�+$/, '');
+  if (firstMatchedText.length === 0) {
+    return undefined;
+  }
+
+  const [firstHitStart] = ranges[0];
+  return content.startsWith(firstMatchedText, firstHitStart) ? ranges : undefined;
 }
 
+/** A window of EXCERPT_RADIUS_CHARS on each side of every hit, clipped to the content. */
 function windowsAroundRanges(content: string, ranges: Array<[number, number]>): Array<[number, number]> {
-  return ranges.map(([start, end]) => [
-    Math.max(0, start - EXCERPT_RADIUS_CHARS),
-    Math.min(content.length, end + EXCERPT_RADIUS_CHARS),
-  ]);
+  return ranges.map(([hitStart, hitEnd]): [number, number] => {
+    const windowStart = Math.max(0, hitStart - EXCERPT_RADIUS_CHARS);
+    const windowEnd = Math.min(content.length, hitEnd + EXCERPT_RADIUS_CHARS);
+    return [windowStart, windowEnd];
+  });
 }
 
 function windowsAroundMatchedStrings(

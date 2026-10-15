@@ -80,32 +80,61 @@ function extractMatchedStrings(
 
 /**
  * Every pattern hit as a `[start, end)` range of UTF-16 indices into the
- * scanned string. yara-x reports byte offsets into the UTF-8 payload.
+ * scanned string, listed in the same order extractMatchedStrings reads hits.
+ *
+ * yara-x reports each hit as a byte offset and length into the UTF-8 payload.
+ * JS strings are indexed in UTF-16 code units, and the two differ once the
+ * content has non-ASCII text: 'é' is 2 bytes but 1 unit, '😀' is 4 bytes but
+ * 2 units. So each byte offset is converted before it is returned.
  */
 function extractMatchedRanges(
   payload: Uint8Array,
   patterns: Array<{ matches?: Array<{ offset: number; length: number }> }> | undefined,
 ): Array<[number, number]> {
-  const hits = (patterns || []).flatMap((pattern) => pattern.matches || []);
-  const charIndex = charIndexesAt(payload, hits.flatMap((h) => [h.offset, h.offset + h.length]));
-  return hits.map((h) => [charIndex.get(h.offset)!, charIndex.get(h.offset + h.length)!]);
+  const byteRanges: Array<{ start: number; end: number }> = [];
+  for (const pattern of patterns || []) {
+    for (const hit of pattern.matches || []) {
+      byteRanges.push({ start: hit.offset, end: hit.offset + hit.length });
+    }
+  }
+
+  const everyByteOffset = byteRanges.flatMap((range) => [range.start, range.end]);
+  const utf16IndexAt = utf16IndexesAtByteOffsets(payload, everyByteOffset);
+  // Every offset was passed in above, so every lookup finds one.
+  const toUtf16 = (byteOffset: number) => utf16IndexAt.get(byteOffset)!;
+
+  return byteRanges.map((range): [number, number] => [toUtf16(range.start), toUtf16(range.end)]);
 }
 
 /**
- * Map byte offsets to UTF-16 indices in one pass. Each byte that starts a
- * character adds one code unit, or two when it starts a 4-byte character.
+ * Converts byte offsets in a UTF-8 payload to UTF-16 indices in the string it
+ * was encoded from. It sorts the offsets, then walks the payload once from the
+ * front, counting UTF-16 units as it passes each character. That costs
+ * O(payload bytes + offsets × log offsets).
+ *
+ * In UTF-8 every character starts with a byte that isn't `10xxxxxx`. A
+ * character of 1 to 3 bytes is 1 UTF-16 unit. A 4-byte character starts with
+ * `11110xxx` and is a surrogate pair, 2 units.
  */
-function charIndexesAt(payload: Uint8Array, byteOffsets: number[]): Map<number, number> {
-  const charIndex = new Map<number, number>();
+function utf16IndexesAtByteOffsets(payload: Uint8Array, byteOffsets: number[]): Map<number, number> {
+  const ascendingOffsets = [...new Set(byteOffsets)].sort((a, b) => a - b);
+  const utf16IndexAt = new Map<number, number>();
+
   let byte = 0;
-  let units = 0;
-  for (const target of [...new Set(byteOffsets)].sort((a, b) => a - b)) {
-    for (; byte < target; byte++) {
-      if ((payload[byte] & 0xc0) !== 0x80) units += payload[byte] >= 0xf0 ? 2 : 1;
+  let utf16Index = 0;
+  for (const offset of ascendingOffsets) {
+    while (byte < offset) {
+      const startsACharacter = (payload[byte] & 0b1100_0000) !== 0b1000_0000;
+      if (startsACharacter) {
+        const startsAFourByteCharacter = payload[byte] >= 0b1111_0000;
+        utf16Index += startsAFourByteCharacter ? 2 : 1;
+      }
+      byte++;
     }
-    charIndex.set(target, units);
+    utf16IndexAt.set(offset, utf16Index);
   }
-  return charIndex;
+
+  return utf16IndexAt;
 }
 
 /**

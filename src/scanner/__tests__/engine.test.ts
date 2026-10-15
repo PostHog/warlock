@@ -30,60 +30,75 @@ describe('engine.scan', () => {
   });
 });
 
-describe('engine.scan matchedRanges bounds', () => {
-  const rangeTexts = (content: string, ranges: Array<[number, number]> = []) =>
+describe('engine.scan matchedRanges', () => {
+  /** The text each range points at, so a test can compare it to what it planted. */
+  const textAtEachRange = (content: string, ranges: Array<[number, number]> = []) =>
     ranges.map(([start, end]) => content.slice(start, end));
 
-  it('reports each hit as a UTF-16 range, across 1 to 4 byte characters and lone surrogates', async () => {
-    // A lone surrogate is 1 UTF-16 unit but 3 bytes once encoded.
-    const alphabet = ['a', ' ', '\n', 'é', 'ß', '中', '€', '😀', '𝄞', '\uD800'];
+  const findRule = async (content: string, rule: string) => {
+    const result = await scan(content);
+    return result.matched ? result.matches.find((m) => m.rule === rule) : undefined;
+  };
+
+  // CATCHES: a range that points next to the hit rather than at it.
+  // yara-x reports byte offsets into UTF-8, but JS strings count UTF-16 units.
+  // 'é' is 2 bytes and 1 unit, '😀' is 4 bytes and 2 units. If the conversion
+  // is off, triage shows the model the text beside the hit, and the model
+  // judges the wrong thing.
+  it('points each range at exactly the text that hit, after accents, CJK, emoji and lone surrogates', async () => {
+    // A lone surrogate is 1 UTF-16 unit, but TextEncoder writes it as 3 bytes.
+    const charsOfEveryWidth = ['a', ' ', '\n', 'é', 'ß', '中', '€', '😀', '𝄞', '\uD800'];
     let seed = 1;
     const random = () => ((seed = (seed * 1103515245 + 12345) >>> 0) / 2 ** 32);
+    const randomText = (length: number) =>
+      Array.from({ length }, () => charsOfEveryWidth[Math.floor(random() * charsOfEveryWidth.length)]).join('');
 
     for (let run = 1; run <= 200; run++) {
-      const pushes: string[] = [];
+      // Plant 1 to 8 pushes, each after up to 300 random characters.
+      const plantedPushes: string[] = [];
       let content = '\n';
-      for (let part = 0; part < 1 + Math.floor(random() * 8); part++) {
-        for (let i = Math.floor(random() * 300); i > 0; i--) content += alphabet[Math.floor(random() * alphabet.length)];
-        const push = `git push r${run}x${part}`;
-        pushes.push(push);
-        content += `\n${push}${random() < 0.5 ? ' main' : ''}\n`;
+      for (let i = 0; i < 1 + Math.floor(random() * 8); i++) {
+        const push = `git push r${run}x${i}`;
+        plantedPushes.push(push);
+        content += randomText(Math.floor(random() * 300)) + `\n${push}${random() < 0.5 ? ' main' : ''}\n`;
       }
 
-      const result = await scan(content);
-      if (!result.matched) throw new Error(`run ${run}: no match`);
-      const match = result.matches.find((m) => m.rule === 'exfiltration_git_push_non_origin')!;
+      const match = await findRule(content, 'exfiltration_git_push_non_origin');
 
-      expect(rangeTexts(content, match.matchedRanges), `run ${run}`).toEqual(pushes);
+      expect(textAtEachRange(content, match?.matchedRanges), `run ${run}`).toEqual(plantedPushes);
     }
   });
 
-  it('reports every hit, past the five matchedStrings keep', async () => {
+  // CATCHES: hits dropped past the first five. matchedStrings keeps 5, so a
+  // range list capped the same way would hide the 6th hit from triage.
+  it('reports all 10,000 hits of one rule, where matchedStrings keeps only 5', async () => {
     const pushes = Array.from({ length: 10_000 }, (_, i) => `git push remote${i}`);
-    const content = pushes.join(' main\n') + ' main\n';
+    const content = pushes.map((push) => `${push} main\n`).join('');
 
-    const result = await scan(content);
-    if (!result.matched) throw new Error('no match');
-    const match = result.matches.find((m) => m.rule === 'exfiltration_git_push_non_origin')!;
+    const match = await findRule(content, 'exfiltration_git_push_non_origin');
 
-    expect(match.matchedStrings).toHaveLength(5);
-    expect(rangeTexts(content, match.matchedRanges)).toEqual(pushes);
+    expect(match?.matchedStrings).toHaveLength(5);
+    expect(textAtEachRange(content, match?.matchedRanges)).toEqual(pushes);
   });
 
-  it('reports a hit whole up to 4,095 bytes, and a pattern needing more never fires', async () => {
-    // yara-x stops confirming a regex hit after its 4,096-byte scan limit.
-    const captureCall = (bytes: number) =>
-      `posthog.capture('signed_up', {\n${'  a: 1,\n'.repeat(bytes / 8)}  email: user.email,\n})\n`;
+  // CATCHES: a hit cut short. matchedStrings cuts each hit at 200 bytes, so a
+  // range cut the same way would hide the PII key at the end of a long call.
+  it('reports a 4,000-byte hit whole, from `.capture(` to the PII key at its end', async () => {
+    const content = `posthog.capture('signed_up', {\n${'  a: 1,\n'.repeat(500)}  email: user.email,\n})\n`;
 
-    const fits = captureCall(4000);
-    const fitsResult = await scan(fits);
-    if (!fitsResult.matched) throw new Error('no match');
-    const pii = fitsResult.matches.find((m) => m.rule === 'posthog_pii_in_capture_call')!;
-    const [hit] = rangeTexts(fits, pii.matchedRanges);
-    expect(hit.startsWith('.capture(')).toBe(true);
-    expect(hit.endsWith('email:')).toBe(true);
+    const match = await findRule(content, 'posthog_pii_in_capture_call');
+    const [hitText] = textAtEachRange(content, match?.matchedRanges);
 
-    const tooLong = await scan(captureCall(5000));
-    expect(tooLong.matched && tooLong.matches.some((m) => m.rule === 'posthog_pii_in_capture_call')).toBe(false);
+    expect(hitText.startsWith('.capture(')).toBe(true);
+    expect(hitText.endsWith('email:')).toBe(true);
+  });
+
+  // KNOWN BLIND SPOT, owned by yara-x and not by this code: yara-x stops
+  // matching a regex after 4,096 bytes, so a pattern that would need a longer
+  // hit doesn't fire at all. This test fails if that limit changes.
+  it('does not flag a PII key more than 4,096 bytes into a capture call', async () => {
+    const content = `posthog.capture('signed_up', {\n${'  a: 1,\n'.repeat(625)}  email: user.email,\n})\n`;
+
+    expect(await findRule(content, 'posthog_pii_in_capture_call')).toBeUndefined();
   });
 });
