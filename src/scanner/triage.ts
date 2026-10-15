@@ -175,11 +175,7 @@ type PromptContent = { text: string; unshownMatchReasons: Map<number, string> };
  */
 function promptContent(content: string, matches: ScanMatch[]): PromptContent {
   const unshownMatchReasons = new Map<number, string>();
-  if (content.length <= MAX_CONTENT_CHARS) {
-    return { text: content, unshownMatchReasons };
-  }
-
-  let shownWindows: Array<[number, number]> = [];
+  const windowsByMatchIndex = new Map<number, Array<[number, number]>>();
   matches.forEach((match, matchIndex) => {
     const matchWindows = windowsAroundMatchedStrings(content, match.matchedStrings ?? []);
     if (matchWindows === 'not_found') {
@@ -189,6 +185,14 @@ function promptContent(content: string, matches: ScanMatch[]): PromptContent {
       );
       return;
     }
+    windowsByMatchIndex.set(matchIndex, matchWindows);
+  });
+  if (content.length <= MAX_CONTENT_CHARS) {
+    return { text: content, unshownMatchReasons };
+  }
+
+  let shownWindows: Array<[number, number]> = [];
+  windowsByMatchIndex.forEach((matchWindows, matchIndex) => {
     const candidateWindows = mergeWindows([...shownWindows, ...matchWindows]);
     if (renderedLength(candidateWindows) > MAX_CONTENT_CHARS) {
       unshownMatchReasons.set(
