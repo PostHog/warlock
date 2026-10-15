@@ -36,7 +36,7 @@ I get that it's tempting to slip in extra checks here ("we already have a scanne
 **Anti-goals – things the Warlock must never become:**
 
 1. **A general-purpose linter or code-quality tool.** Rules need to catch genuine security risks – prompt injection, exfiltration, destructive operations, poisoned context, that kind of thing. Best-practice checks ("did you enable feature X?") belong in the wizard or a dedicated linter, not here.
-2. **A policy or enforcement engine that takes action.** the Warlock detects, consumers decide. Each rule's `action` field is a *recommendation* (`block`, `revert`, `warn`), not a command. The consumer implements the actual response.
+2. **A policy or enforcement engine that takes action.** the Warlock detects, consumers decide. Each rule's `action` field is a *recommendation* (`block`, `remediate`, `warn`), not a command. The consumer implements the actual response.
 3. **An orchestration engine that dictates when or where to scan.** the Warlock is engine-only. It knows nothing about phases, tools, agents, or workflows. Consumers wire up the timing themselves.
 4. **A wizard-specific tool.** the Warlock has to serve context-mill and future consumers equally. No wizard-only assumptions (tool names, phase names, wizard-specific categories) belong in the Warlock itself.
 
@@ -84,7 +84,7 @@ Every rule has a `scan_context` field (`command`, `input`, or `output`) indicati
 
 ### `action` field as a recommendation, not a command
 
-Every rule's metadata includes an `action` (`block`, `revert`, or `warn`). This is the rule author's *opinion* about how serious the finding is and what the consumer should do – not a directive.
+Every rule's metadata includes an `action` (`block`, `remediate`, or `warn`). This is the rule author's *opinion* about how serious the finding is and what the consumer should do – not a directive.
 
 - **Why:** Rule authors know the detection context best, consumers know the execution context best. The rule says "this looks like attempted exfiltration, you probably want to block it." The consumer decides whether to actually block, log, notify, escalate, or do something else entirely.
 
