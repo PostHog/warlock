@@ -69,6 +69,12 @@ export interface ScanMatch {
    * Always present; an empty array means no span was recovered.
    */
   matchedStrings: string[];
+  /**
+   * Where each pattern hit starts and ends in the scanned string, as UTF-16
+   * indices. Unlike `matchedStrings` it is never capped, so triage can show
+   * the model every hit that fired the rule.
+   */
+  matchedRanges?: Array<[number, number]>;
 }
 
 /**

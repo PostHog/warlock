@@ -79,6 +79,36 @@ function extractMatchedStrings(
 }
 
 /**
+ * Every pattern hit as a `[start, end)` range of UTF-16 indices into the
+ * scanned string. yara-x reports byte offsets into the UTF-8 payload.
+ */
+function extractMatchedRanges(
+  payload: Uint8Array,
+  patterns: Array<{ matches?: Array<{ offset: number; length: number }> }> | undefined,
+): Array<[number, number]> {
+  const hits = (patterns || []).flatMap((pattern) => pattern.matches || []);
+  const charIndex = charIndexesAt(payload, hits.flatMap((h) => [h.offset, h.offset + h.length]));
+  return hits.map((h) => [charIndex.get(h.offset)!, charIndex.get(h.offset + h.length)!]);
+}
+
+/**
+ * Map byte offsets to UTF-16 indices in one pass. Each byte that starts a
+ * character adds one code unit, or two when it starts a 4-byte character.
+ */
+function charIndexesAt(payload: Uint8Array, byteOffsets: number[]): Map<number, number> {
+  const charIndex = new Map<number, number>();
+  let byte = 0;
+  let units = 0;
+  for (const target of [...new Set(byteOffsets)].sort((a, b) => a - b)) {
+    for (; byte < target; byte++) {
+      if ((payload[byte] & 0xc0) !== 0x80) units += payload[byte] >= 0xf0 ? 2 : 1;
+    }
+    charIndex.set(target, units);
+  }
+  return charIndex;
+}
+
+/**
  * Scan content against all loaded YARA rules.
  *
  * Rules are compiled on the first call and cached for subsequent calls.
@@ -101,6 +131,7 @@ export async function scan(content: string): Promise<ScanResult> {
     rule: m.identifier,
     metadata: normalizeMetadata(m.metadata || []),
     matchedStrings: extractMatchedStrings(payload, m.patterns),
+    matchedRanges: extractMatchedRanges(payload, m.patterns),
   }));
 
   return { matched: true, matches };

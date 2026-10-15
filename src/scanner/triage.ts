@@ -169,7 +169,8 @@ type PromptContent = { text: string; unshownMatchReasons: Map<number, string> };
 
 /**
  * The content the model sees: all of it when it fits, otherwise the windows
- * around every occurrence of each match's text. A match whose text cannot be
+ * around every hit scan() reported, or every occurrence of each match's text
+ * when it has no usable ranges. A match whose text cannot be
  * located, or whose windows do not all fit, is reported as unshown so it is
  * never judged blind.
  */
@@ -177,7 +178,12 @@ function promptContent(content: string, matches: ScanMatch[]): PromptContent {
   const unshownMatchReasons = new Map<number, string>();
   const windowsByMatchIndex = new Map<number, Array<[number, number]>>();
   matches.forEach((match, matchIndex) => {
-    const matchWindows = windowsAroundMatchedStrings(content, match.matchedStrings ?? []);
+    // Ranges cover every hit, but only index into the content scan() saw.
+    // Otherwise fall back to searching for the matched strings, which the
+    // engine caps at 5 and cuts at 200 bytes.
+    const matchWindows = rangesPointIntoContent(content, match)
+      ? windowsAroundRanges(content, match.matchedRanges!)
+      : windowsAroundMatchedStrings(content, match.matchedStrings ?? []);
     if (matchWindows === 'not_found') {
       unshownMatchReasons.set(
         matchIndex,
@@ -211,6 +217,24 @@ function promptContent(content: string, matches: ScanMatch[]): PromptContent {
     text: shownWindows.map(([start, end]) => content.slice(start, end)).join(EXCERPT_SEPARATOR),
     unshownMatchReasons,
   };
+}
+
+/**
+ * True when the match's ranges index into this content. scan() lists ranges
+ * and matched strings in the same hit order, so the first matched string
+ * sits at the first range when the content is the one that was scanned.
+ */
+function rangesPointIntoContent(content: string, match: ScanMatch): boolean {
+  const firstRange = match.matchedRanges?.[0];
+  const firstString = match.matchedStrings?.[0]?.replace(/�+$/, '');
+  return !!firstRange && !!firstString && content.startsWith(firstString, firstRange[0]);
+}
+
+function windowsAroundRanges(content: string, ranges: Array<[number, number]>): Array<[number, number]> {
+  return ranges.map(([start, end]) => [
+    Math.max(0, start - EXCERPT_RADIUS_CHARS),
+    Math.min(content.length, end + EXCERPT_RADIUS_CHARS),
+  ]);
 }
 
 function windowsAroundMatchedStrings(
