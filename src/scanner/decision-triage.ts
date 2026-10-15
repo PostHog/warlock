@@ -1,5 +1,5 @@
 import type { ScanMatch, TriageMatch, TriageVerdict, DecisionProvider, DecisionRequest, DecisionQuestion } from './types.js';
-import { rangesIntoThisContent } from './triage.js';
+import { rangesIntoThisContent, withoutReplacementChars } from './triage.js';
 
 /**
  * The reason every match gets when there is too much flagged content to
@@ -188,7 +188,7 @@ function occurrencesOf(content: string, matchedStrings: string[]): Array<[number
   const occurrences: Array<[number, number]> = [];
   for (const matchedString of matchedStrings) {
     // engine.ts cuts each string at a byte limit, which can split a multibyte char into U+FFFD.
-    const searchText = matchedString.replace(/^�+|�+$/g, '');
+    const searchText = withoutReplacementChars(matchedString, 'both');
     if (searchText.length === 0 || !content.includes(searchText)) {
       return [];
     }

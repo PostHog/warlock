@@ -514,3 +514,20 @@ describe('triageMatches on content over 30,000 chars', () => {
     expect(performance.now() - start).toBeLessThan(1_000);
   });
 });
+
+describe('triageMatches with many U+FFFD characters', () => {
+  // CATCHES: a regex that backtracks quadratically on a matched string full of
+  // U+FFFD, which a consumer-built match can carry. CodeQL flagged it.
+  it('handles matched strings of 50,000 U+FFFD characters in well under a second', async () => {
+    const fffdHeavy = 'x' + '\uFFFD'.repeat(50_000) + 'x';
+    const withRanges: ScanMatch = { ...fakeMatch('rule_a', 'supply_chain'), matchedStrings: [fffdHeavy], matchedRanges: [[0, 1]] };
+    const withoutRanges: ScanMatch = { ...fakeMatch('rule_b', 'supply_chain'), matchedStrings: [fffdHeavy] };
+    const clearsAll: LLMProvider = async (prompt) =>
+      JSON.stringify([...prompt.matchAll(/\[(\d+)\] rule:/g)].map((m) => ({ index: Number(m[1]), verdict: 'false_positive', reason: 'fine' })));
+
+    const start = performance.now();
+    await triageMatches('plain content', [withRanges, withoutRanges], clearsAll);
+
+    expect(performance.now() - start).toBeLessThan(500);
+  });
+});

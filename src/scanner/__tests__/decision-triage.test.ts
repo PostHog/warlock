@@ -194,3 +194,17 @@ describe('triageMatchesByDecision', () => {
     expect(result.triage.verdict).toBe('true_positive');
   });
 });
+
+describe('triageMatchesByDecision with many U+FFFD characters', () => {
+  // CATCHES: a regex that backtracks quadratically on a matched string full of
+  // U+FFFD, which a consumer-built match can carry. CodeQL flagged it.
+  it('handles a matched string of 50,000 U+FFFD characters in well under a second', async () => {
+    const match: ScanMatch = { ...fakeHitMatch('rule', 'x'), matchedStrings: ['x' + '\uFFFD'.repeat(50_000) + 'x'] };
+
+    const start = performance.now();
+    const [result] = await triageMatchesByDecision('plain content', [match], modelThatFlagsHitsContaining('never'));
+
+    expect(performance.now() - start).toBeLessThan(500);
+    expect(result.triage.verdict).toBe('true_positive');
+  });
+});

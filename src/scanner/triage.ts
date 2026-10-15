@@ -237,13 +237,26 @@ export function rangesIntoThisContent(content: string, match: ScanMatch): Array<
 
   // engine.ts cuts matched strings at 200 bytes, which can leave a broken
   // character at the end as U+FFFD. Drop it before comparing.
-  const firstMatchedText = firstMatchedString.replace(/�+$/, '');
+  const firstMatchedText = withoutReplacementChars(firstMatchedString, 'end');
   if (firstMatchedText.length === 0) {
     return undefined;
   }
 
   const [firstHitStart] = ranges[0];
   return content.startsWith(firstMatchedText, firstHitStart) ? ranges : undefined;
+}
+
+/**
+ * `text` without the U+FFFD characters at its end, or at both ends. engine.ts
+ * leaves them when its 200-byte cut splits a multibyte character. This is a
+ * loop rather than a regex, which backtracks quadratically on long runs of them.
+ */
+export function withoutReplacementChars(text: string, ends: 'end' | 'both'): string {
+  let start = 0;
+  let end = text.length;
+  while (ends === 'both' && start < end && text.charCodeAt(start) === 0xfffd) start++;
+  while (end > start && text.charCodeAt(end - 1) === 0xfffd) end--;
+  return text.slice(start, end);
 }
 
 /** A window of EXCERPT_RADIUS_CHARS on each side of every hit, clipped to the content. */
@@ -262,7 +275,7 @@ function windowsAroundMatchedStrings(
   const windows: Array<[number, number]> = [];
   for (const matchedString of matchedStrings) {
     // engine.ts cuts each span at a byte limit, which can split a multibyte char into U+FFFD.
-    const searchText = matchedString.replace(/^\uFFFD+|\uFFFD+$/g, '');
+    const searchText = withoutReplacementChars(matchedString, 'both');
     const firstStart = searchText.length > 0 ? content.indexOf(searchText) : -1;
     if (firstStart === -1) {
       return 'not_found';
