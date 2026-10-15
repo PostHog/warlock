@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.5](https://github.com/PostHog/warlock/compare/v0.2.4...v0.2.5) (2026-10-15)
+
+
+### Bug Fixes
+
+* **triage:** judge each match against its own text ([#74](https://github.com/PostHog/warlock/issues/74)) ([6377de8](https://github.com/PostHog/warlock/commit/6377de863852bc5dce21d0b12126f063ad79f102))
+
 ## [0.2.4](https://github.com/PostHog/warlock/compare/v0.2.3...v0.2.4) (2026-07-24)
 
 
