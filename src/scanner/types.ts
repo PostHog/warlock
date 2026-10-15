@@ -113,3 +113,29 @@ export interface TriageOptions {
   maxPromptChars?: number; // default: 80000
 }
 
+/**
+ * A request to the AI gateway's decision route, `POST /v1/systemone`: one
+ * state and typed questions about it. The consumer adds the model and sends it.
+ */
+export interface DecisionRequest {
+  state: string;
+  questions: Record<string, DecisionQuestion>;
+}
+
+/** A yes/no question. The answer is the probability that `criteria.true` holds. */
+export interface DecisionQuestion {
+  type: 'noul';
+  instructions: string;
+  criteria: { true: string; false: string };
+}
+
+/** The gateway's decision response: one answer per question id. */
+export interface DecisionResponse {
+  answers: Record<string, { type: string; noul?: number }>;
+}
+
+/**
+ * Callback that consumers provide to reach the decision route. Receives the
+ * request warlock built, returns the gateway's response, and throws on failure.
+ */
+export type DecisionProvider = (request: DecisionRequest) => Promise<DecisionResponse>;

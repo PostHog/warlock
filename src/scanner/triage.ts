@@ -228,7 +228,7 @@ function promptContent(content: string, matches: ScanMatch[]): PromptContent {
  * order, so in the scanned string the first matched string sits at the first
  * range. If it isn't there, the ranges came from some other string.
  */
-function rangesIntoThisContent(content: string, match: ScanMatch): Array<[number, number]> | undefined {
+export function rangesIntoThisContent(content: string, match: ScanMatch): Array<[number, number]> | undefined {
   const ranges = match.matchedRanges;
   const firstMatchedString = match.matchedStrings?.[0];
   if (!ranges || ranges.length === 0 || !firstMatchedString) {

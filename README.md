@@ -223,6 +223,15 @@ if (result.matched) {
 }
 ```
 
+### `triageMatchesByDecision(content, matches, decide): Promise<TriageMatch[]>`
+
+Optional. Same input and output as `triageMatches()`, but judged by the AI gateway's decision model through `POST /v1/systemone`. Warlock builds each request and the consumer's `decide` callback sends it, adding the model id (`openai/gpt-6-luna`).
+
+- **Per hit.** The whole content is the state. Every distinct hit gets two fixed questions, "is it a real threat?" and "is it benign?". The hit's score is the mean of the first answer and one minus the second, and a match is `true_positive` when any of its hits scores 0.5 or more.
+- **Requests.** 16 hits (32 questions) per request, with up to 4 requests in flight.
+- **Fail-safe.** A refused or missing answer, a failed call, or text that isn't in the content makes the match `true_positive`.
+- **Too much to triage.** More than 256 distinct hits, or a request over the gateway's 1 MiB limit, make every match `true_positive` with the reason `TRIAGE_TOO_MUCH_TO_REVIEW`, without a call.
+
 ### Types
 
 ```typescript
@@ -261,6 +270,12 @@ type TriageVerdict = 'true_positive' | 'false_positive';
 interface TriageMatch extends ScanMatch {
   triage: { verdict: TriageVerdict; reason: string };
 }
+
+// Decision triage types
+type DecisionProvider = (request: DecisionRequest) => Promise<DecisionResponse>;
+interface DecisionRequest { state: string; questions: Record<string, DecisionQuestion> }
+interface DecisionQuestion { type: 'noul'; instructions: string; criteria: { true: string; false: string } }
+interface DecisionResponse { answers: Record<string, { type: string; noul?: number }> }
 ```
 
 `CATEGORIES` is also exported as a runtime value (the `as const` array) for consumers that need to iterate over all categories.
