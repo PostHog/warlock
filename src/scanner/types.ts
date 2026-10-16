@@ -69,6 +69,12 @@ export interface ScanMatch {
    * Always present; an empty array means no span was recovered.
    */
   matchedStrings: string[];
+  /**
+   * Where each pattern hit starts and ends in the scanned string, as UTF-16
+   * indices. Unlike `matchedStrings` it is never capped, so triage can show
+   * the model every hit that fired the rule.
+   */
+  matchedRanges?: Array<[number, number]>;
 }
 
 /**
@@ -95,15 +101,33 @@ export interface TriageMatch extends ScanMatch {
 }
 
 /**
- * Callback that consumers provide to connect their own LLM.
- * Receives a prompt string, returns the LLM's text response.
+ * A question for the classifier. A `bool` answer is the probability that
+ * `criteria.true` holds, and a `choice` answer is a probability per criterion.
+ * Same shapes as pi-ai's `ClassifierBoolQuestion` and `ClassifierChoiceQuestion`.
  */
-export type LLMProvider = (prompt: string) => Promise<string>;
+export type TriageQuestion =
+  | { type: 'bool'; instructions: string; criteria: { true: string; false: string } }
+  | { type: 'choice'; instructions: string; criteria: Record<string, string> };
 
-/**
- * Optional configuration for triageMatches().
- */
-export interface TriageOptions {
-  maxPromptChars?: number; // default: 80000
+/** What triage asks the classifier. Same shape as pi-ai's `ClassifierContext`. */
+export interface TriageClassifierContext {
+  state: { content: string };
+  questions: Record<string, TriageQuestion>;
 }
 
+/**
+ * The classifier's answers, one per question id. Same shape as pi-ai's
+ * `ClassifierResult`, which reports a failed call in `stopReason` and
+ * `errorMessage` rather than throwing.
+ */
+export interface TriageClassifierResult {
+  answers: Record<string, { type: string; probability?: number; probabilities?: Record<string, number> }>;
+  stopReason?: string;
+  errorMessage?: string;
+}
+
+/**
+ * Callback that consumers provide to reach a classifier model, such as
+ * `(context) => classify(model, context, { apiKey })` with pi-ai.
+ */
+export type TriageClassifier = (context: TriageClassifierContext) => Promise<TriageClassifierResult>;
