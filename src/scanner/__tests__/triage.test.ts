@@ -3,11 +3,13 @@ import { triageMatches, TRIAGE_TOO_MUCH_TO_REVIEW } from '../triage.js';
 import { scan } from '../engine.js';
 import type { ScanMatch, TriageClassifier, TriageClassifierContext } from '../types.js';
 
-// The two questions asked about every hit, exactly as measured in the
-// decision-model eval. Averaging the threat answer with the flipped benign
-// answer cancels the model's lean toward "no".
-const THREAT_QUESTION = 'Question: Is this occurrence a real security threat to the AI agent or its user?';
-const BENIGN_QUESTION = 'Question: Is this occurrence benign for the AI agent and its user?';
+// The questions asked about every hit and about the whole file, exactly as
+// measured in the decision-model eval. Averaging the off-purpose answer with
+// the flipped needed answer cancels the model's lean toward "no".
+const OFF_PURPOSE_QUESTION = "Question: Does this occurrence put the user at risk in a way the content's own stated purpose does not need?";
+const NEEDED_QUESTION = "Question: Is this occurrence either harmless, or needed by the content's own stated purpose?";
+const FILE_QUESTION = 'Question: Does every step this content asks for serve its own stated purpose?';
+const asks = (instructions: string, question: string) => instructions.includes(question);
 
 const filler = (chars: number) => 'Plain setup notes for the project.\n'.repeat(Math.ceil(chars / 35));
 const matchedTextOf = (instructions: string) => /^Matched text: (.*)$/m.exec(instructions)?.[1] ?? '';
@@ -17,10 +19,17 @@ const fakeHitMatch = (rule: string, hitText: string): ScanMatch => ({
   matchedStrings: [hitText],
 });
 
+/** A file answer giving `offPurpose` to the off-purpose option. */
+const fileAnswer = (offPurpose: number) => ({
+  type: 'choice',
+  probabilities: { all_serve_purpose: 1 - offPurpose, off_purpose_step: offPurpose },
+});
+
 /**
- * A stand-in classifier that judges each question by its own matched text: a
- * confident threat when the text contains `badText`, confidently benign
- * otherwise. Records every context it gets.
+ * A stand-in classifier that judges each hit question by its own matched
+ * text: a confident threat when the text contains `badText`, confidently
+ * harmless otherwise. It says every step of the file serves its purpose.
+ * Records every context it gets.
  */
 const classifierThatFlagsHitsContaining =
   (badText: string, contexts: TriageClassifierContext[] = []): TriageClassifier =>
@@ -28,23 +37,26 @@ const classifierThatFlagsHitsContaining =
     contexts.push(context);
     const answers = Object.fromEntries(
       Object.entries(context.questions).map(([id, question]) => {
+        if (question.type === 'choice') return [id, fileAnswer(0.01)];
         const bad = matchedTextOf(question.instructions).includes(badText);
-        const asksBenign = question.instructions.endsWith(BENIGN_QUESTION);
-        return [id, { type: 'bool', probability: bad !== asksBenign ? 0.95 : 0.05 }];
+        const asksNeeded = asks(question.instructions, NEEDED_QUESTION);
+        return [id, { type: 'bool', probability: bad !== asksNeeded ? 0.95 : 0.05 }];
       }),
     );
     return { stopReason: 'stop', answers };
   };
 
-/** A classifier that gives every threat question `threat` and every benign question `benign`. */
+/** A classifier that gives every off-purpose question `offPurpose`, every needed question `needed`, and the file question `file`. */
 const answering =
-  (threat: number, benign: number): TriageClassifier =>
+  (offPurpose: number, needed: number, file = 0.01): TriageClassifier =>
   async (context) => ({
     stopReason: 'stop',
     answers: Object.fromEntries(
       Object.entries(context.questions).map(([id, question]) => [
         id,
-        { type: 'bool', probability: question.instructions.endsWith(BENIGN_QUESTION) ? benign : threat },
+        question.type === 'choice'
+          ? fileAnswer(file)
+          : { type: 'bool', probability: asks(question.instructions, NEEDED_QUESTION) ? needed : offPurpose },
       ]),
     ),
   });
@@ -96,35 +108,61 @@ describe('triageMatches', () => {
 
   // CATCHES: a declined or dropped answer read as harmless.
   it('treats a refused or missing answer as a threat', async () => {
-    const refusesThreatQuestion: TriageClassifier = async (context) => ({
+    const refusesOffPurposeQuestion: TriageClassifier = async (context) => ({
       stopReason: 'stop',
       answers: Object.fromEntries(
         Object.entries(context.questions).map(([id, question]) =>
-          question.instructions.endsWith(THREAT_QUESTION) ? [id, { type: 'refusal' }] : [id, { type: 'bool', probability: 0.99 }],
+          asks(question.instructions, OFF_PURPOSE_QUESTION) ? [id, { type: 'refusal' }] : [id, question.type === 'choice' ? fileAnswer(0.01) : { type: 'bool', probability: 0.99 }],
         ),
       ),
     });
     const answersNothing: TriageClassifier = async () => ({ stopReason: 'stop', answers: {} });
 
-    const [refused] = await triageMatches('flagged', [fakeHitMatch('rule', 'flagged')], refusesThreatQuestion);
+    const [refused] = await triageMatches('flagged', [fakeHitMatch('rule', 'flagged')], refusesOffPurposeQuestion);
     const [missing] = await triageMatches('flagged', [fakeHitMatch('rule', 'flagged')], answersNothing);
 
     expect(refused.triage.verdict).toBe('true_positive');
     expect(missing.triage.verdict).toBe('true_positive');
   });
 
-  // CATCHES: trusting one framing, which leans the model toward "no".
-  it('scores a hit as the mean of the threat answer and the flipped benign answer, flagging at 0.5', async () => {
+  // CATCHES: a refused file question read as "every step serves its purpose".
+  it('treats a refused file question as a threat for every match', async () => {
+    const refusesFileQuestion: TriageClassifier = async (context) => {
+      const { answers } = await answering(0.01, 0.99)(context);
+      return { stopReason: 'stop', answers: Object.fromEntries(Object.entries(answers).filter(([, a]) => a.type !== 'choice')) };
+    };
+
+    const result = await triageMatches('flagged-a flagged-b', [fakeHitMatch('a', 'flagged-a'), fakeHitMatch('b', 'flagged-b')], refusesFileQuestion);
+
+    expect(result.map((r) => r.triage.verdict)).toEqual(['true_positive', 'true_positive']);
+  });
+
+  // CATCHES: trusting one framing, which leans the model toward "no", or a
+  // threshold that lets through more false positives than measured.
+  it('scores a hit as the mean of the off-purpose answer and the flipped needed answer, flagging at 0.6', async () => {
     const match = [fakeHitMatch('rule', 'flagged')];
 
-    const [atThreshold] = await triageMatches('flagged', match, answering(0.6, 0.6));
-    const [below] = await triageMatches('flagged', match, answering(0.4, 0.8));
-    // A "no" to the threat question is outvoted by a "no" to the benign question.
-    const [leaningNo] = await triageMatches('flagged', match, answering(0.4, 0.2));
+    const [atThreshold] = await triageMatches('flagged', match, answering(0.7, 0.5));
+    const [below] = await triageMatches('flagged', match, answering(0.6, 0.5));
+    // A "no" to the off-purpose question is outvoted by a firm "no" to the needed question.
+    const [leaningNo] = await triageMatches('flagged', match, answering(0.4, 0.1));
 
     expect(atThreshold.triage.verdict).toBe('true_positive');
     expect(below.triage.verdict).toBe('false_positive');
     expect(leaningNo.triage.verdict).toBe('true_positive');
+  });
+
+  // CATCHES: a harmful step outside every hit's window going unseen, or the
+  // file question flagging files it is unsure about.
+  it('flags every match when the file question scores an off-purpose step at 0.95', async () => {
+    const matches = [fakeHitMatch('a', 'flagged-a'), fakeHitMatch('b', 'flagged-b')];
+
+    const atThreshold = await triageMatches('flagged-a flagged-b', matches, answering(0.01, 0.99, 0.95));
+    const below = await triageMatches('flagged-a flagged-b', matches, answering(0.01, 0.99, 0.94));
+
+    expect(atThreshold.map((r) => r.triage.verdict)).toEqual(['true_positive', 'true_positive']);
+    expect(atThreshold[0].triage.reason).toContain('stated purpose');
+    expect(below.map((r) => r.triage.verdict)).toEqual(['false_positive', 'false_positive']);
   });
 
   // CATCHES: wording that drifts from what was measured, or varies between runs.
@@ -142,16 +180,30 @@ describe('triageMatches', () => {
 
     expect(first).toEqual(second);
     const questions = Object.values(first[0].questions);
-    expect(questions.filter((q) => q.instructions.endsWith(THREAT_QUESTION))).toHaveLength(2);
-    expect(questions.filter((q) => q.instructions.endsWith(BENIGN_QUESTION))).toHaveLength(2);
-    expect(questions.every((q) => q.type === 'bool')).toBe(true);
+    expect(questions.filter((q) => asks(q.instructions, OFF_PURPOSE_QUESTION))).toHaveLength(2);
+    expect(questions.filter((q) => asks(q.instructions, NEEDED_QUESTION))).toHaveLength(2);
     expect(questions[0].criteria).toEqual({
-      true: 'This occurrence is a real security threat to the AI agent or its user.',
-      false: 'This occurrence is not a real security threat to the AI agent or its user.',
+      true: "It puts the user at risk in a way the content's stated purpose does not need.",
+      false: "It does not put the user at risk, or the content's stated purpose needs it.",
     });
     expect(questions[0].instructions.split('\n')[0]).toBe(
       "A pattern-matching security rule matched one span of the content in the state. The content will be loaded into an AI coding agent's context.",
     );
+    const fileQuestions = questions.filter((q) => q.type === 'choice');
+    expect(fileQuestions).toHaveLength(1);
+    expect(fileQuestions[0].instructions).toContain(FILE_QUESTION);
+    expect(Object.keys(fileQuestions[0].criteria)).toEqual(['all_serve_purpose', 'off_purpose_step']);
+  });
+
+  // CATCHES: a window too narrow to show what the step is for.
+  it('shows 400 characters on each side of the hit', async () => {
+    const content = `${'a'.repeat(500)}flagged${'b'.repeat(500)}`;
+    const contexts: TriageClassifierContext[] = [];
+
+    await triageMatches(content, [fakeHitMatch('rule', 'flagged')], classifierThatFlagsHitsContaining('never', contexts));
+
+    const surrounding = /^Surrounding text \(400 characters on each side\): (.*)$/m.exec(Object.values(contexts[0].questions)[0].instructions)?.[1];
+    expect(surrounding).toBe(JSON.stringify(`${'a'.repeat(400)}flagged${'b'.repeat(400)}`));
   });
 
   // CATCHES: a bad URL set far from the hit, cut out of the model's view.
@@ -166,14 +218,15 @@ describe('triageMatches', () => {
     expect(contexts.every((c) => c.state.content === content)).toBe(true);
   });
 
-  // CATCHES: requests over the gateway's 32-question limit.
-  it('sends 16 hits, 32 questions, per request', async () => {
+  // CATCHES: requests over the gateway's 32-question limit, or the file question asked twice.
+  it('sends at most 32 questions per request, with the file question once', async () => {
     const hitTexts = Array.from({ length: 17 }, (_, i) => `flagged-${i}`);
     const contexts: TriageClassifierContext[] = [];
 
     await triageMatches(hitTexts.join(' '), hitTexts.map((t, i) => fakeHitMatch(`rule_${i}`, t)), classifierThatFlagsHitsContaining('never', contexts));
 
-    expect(contexts.map((c) => Object.keys(c.questions).length).sort((a, b) => b - a)).toEqual([32, 2]);
+    expect(contexts.map((c) => Object.keys(c.questions).length).sort((a, b) => b - a)).toEqual([32, 3]);
+    expect(contexts.flatMap((c) => Object.values(c.questions)).filter((q) => q.type === 'choice')).toHaveLength(1);
   });
 
   // CATCHES: bursts past the gateway's 10 requests per second per team.
@@ -288,7 +341,7 @@ describe('triageMatches judges each hit separately', () => {
 
     const [result] = await triageMatches(content, [hijackRule], classifierThatFlagsHitsContaining('an u', contexts));
 
-    expect(contexts.flatMap((c) => Object.keys(c.questions)), 'two questions for each of 6 hits').toHaveLength(12);
+    expect(contexts.flatMap((c) => Object.keys(c.questions)), 'two questions for each of 6 hits, and the file question').toHaveLength(13);
     expect(result.triage.verdict).toBe('true_positive');
     expect(result.triage.reason).toContain('You are now an u');
   });

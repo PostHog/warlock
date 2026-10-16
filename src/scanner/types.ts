@@ -101,14 +101,13 @@ export interface TriageMatch extends ScanMatch {
 }
 
 /**
- * A yes/no question for the classifier. The answer is the probability that
- * `criteria.true` holds. Same shape as pi-ai's `ClassifierBoolQuestion`.
+ * A question for the classifier. A `bool` answer is the probability that
+ * `criteria.true` holds, and a `choice` answer is a probability per criterion.
+ * Same shapes as pi-ai's `ClassifierBoolQuestion` and `ClassifierChoiceQuestion`.
  */
-export interface TriageQuestion {
-  type: 'bool';
-  instructions: string;
-  criteria: { true: string; false: string };
-}
+export type TriageQuestion =
+  | { type: 'bool'; instructions: string; criteria: { true: string; false: string } }
+  | { type: 'choice'; instructions: string; criteria: Record<string, string> };
 
 /** What triage asks the classifier. Same shape as pi-ai's `ClassifierContext`. */
 export interface TriageClassifierContext {
@@ -122,7 +121,7 @@ export interface TriageClassifierContext {
  * `errorMessage` rather than throwing.
  */
 export interface TriageClassifierResult {
-  answers: Record<string, { type: string; probability?: number }>;
+  answers: Record<string, { type: string; probability?: number; probabilities?: Record<string, number> }>;
   stopReason?: string;
   errorMessage?: string;
 }

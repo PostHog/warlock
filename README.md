@@ -227,9 +227,10 @@ if (result.matched) {
 }
 ```
 
-- **Per hit.** The whole content is the state. Every distinct hit gets two fixed questions, "is it a real threat?" and "is it benign?". The hit's score is the mean of the first answer and one minus the second, and a match is `true_positive` when any of its hits scores 0.5 or more.
-- **Requests.** 16 hits (32 questions) per request, with up to 4 requests in flight.
-- **Fail-safe.** A refused or missing answer, a failed call (thrown, or a result whose `stopReason` isn't `stop`), or text that isn't in the content makes the match `true_positive`.
+- **Per hit.** The whole content is the state. Every distinct hit gets two fixed questions with 400 characters on each side of it: "does it put the user at risk in a way the content's stated purpose doesn't need?" and "is it harmless, or needed by that purpose?". The hit's score is the mean of the first answer and one minus the second, and a match is `true_positive` when any of its hits scores 0.6 or more.
+- **Per file.** One more question asks whether every step the content asks for serves its stated purpose. When the "off-purpose step" answer scores 0.95 or more, every match is `true_positive`.
+- **Requests.** 32 questions per request, with up to 4 requests in flight.
+- **Fail-safe.** A refused or missing answer, the file question's included, a failed call (thrown, or a result whose `stopReason` isn't `stop`), or text that isn't in the content makes the match `true_positive`.
 - **Too much to triage.** More than 256 distinct hits, or a request over the gateway's 1 MiB limit, make every match `true_positive` with the reason `TRIAGE_TOO_MUCH_TO_REVIEW`, without a call.
 
 ### Types
