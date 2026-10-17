@@ -10,7 +10,7 @@ importers:
     dependencies:
       '@virustotal/yara-x':
         specifier: ^1.15.0
-        version: 1.15.0
+        version: 1.20.0
     devDependencies:
       '@types/node':
         specifier: ^25.9.2
@@ -164,8 +164,8 @@ packages:
   '@types/node@25.9.2':
     resolution: {integrity: sha512-G05zqtJhcDLb8uslf5EjCxXg9G1KQxiV8OS0R26IC//Eoyitzqe8z37I7cqvnZlrlSfgocQRfSn/AHBZJJFyGw==}
 
-  '@virustotal/yara-x@1.15.0':
-    resolution: {integrity: sha512-tR+Ue5ci9bURbD7/qjXY0VLVXDUP+NK/uvvgjX6UvSXN+3msfMtpAMaiCdsltFEciU+tXaZeGbHu3N07bvfjsw==}
+  '@virustotal/yara-x@1.20.0':
+    resolution: {integrity: sha512-JaDD6twvaTAqsUhW5wNq+iua7+H4epNUOUO3sqk6dvmdCMjGG9n8hfVDURbq3/HNKsYfQ2b1k0YbLH8qTEu4OQ==}
 
   '@vitest/expect@4.1.8':
     resolution: {integrity: sha512-h3nDO677RDLEGlBxyQ5CW8RlMThSKSRLUePLOx09gNIWRL40edgA1GCZSZgf1W55MFAG6/Sw14KeaAnqv0NKdQ==}
@@ -567,7 +567,7 @@ snapshots:
     dependencies:
       undici-types: 7.24.6
 
-  '@virustotal/yara-x@1.15.0': {}
+  '@virustotal/yara-x@1.20.0': {}
 
   '@vitest/expect@4.1.8':
     dependencies:
